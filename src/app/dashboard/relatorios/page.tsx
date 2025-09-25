@@ -95,7 +95,6 @@ export default function RelatoriosPage() {
         <MonthlyTrend 
           months={allMonths.slice(0, 6)} 
           getMonthData={getMonthData}
-          userId={userId}
         />
         <CategoryBreakdown 
           categories={currentMonthData.categories}
@@ -207,12 +206,10 @@ function IncomeChart({ categories, total, title }: {
 
 function MonthlyTrend({ 
   months, 
-  getMonthData, 
-  userId 
+  getMonthData 
 }: { 
   months: string[];
   getMonthData: (month: string) => any;
-  userId: string;
 }) {
   const monthlyData = months.map(month => {
     const data = getMonthData(month);
