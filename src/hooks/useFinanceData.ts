@@ -177,14 +177,19 @@ export function useFinanceData(userId: string) {
       
       initializeData();
     }
-  }, [userId, currentMonth]); // Removido loadData para evitar loop
+  }, [userId]); // Apenas userId como dependência
+
+  // Carregar dados quando o mês mudar
+  useEffect(() => {
+    if (userId && currentMonth && !isInitialized.current) {
+      loadMonthData(currentMonth);
+    }
+  }, [currentMonth, userId, loadMonthData, isInitialized]);
 
   const setCurrentMonth = useCallback((month: string) => {
     if (month === currentMonth) return;
-    
-    // Carregar apenas dados do mês (transações e stats)
-    loadMonthData(month);
-  }, [currentMonth, loadMonthData]);
+    setCurrentMonthState(month);
+  }, [currentMonth]);
 
   const addNewTransaction = useCallback(async (
     transaction: Omit<Transaction, 'id' | 'month'>

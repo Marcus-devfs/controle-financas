@@ -1,6 +1,6 @@
 "use client";
 
-import { useFinanceData } from "@/hooks/useFinanceData";
+import { useReportsData } from "@/hooks/useReportsData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { Category } from "@/lib/types";
 import { useUserId } from "../layout";
@@ -16,8 +16,14 @@ export default function RelatoriosPage() {
     currentMonth,
     setCurrentMonth, 
     getAvailableMonths,
-    getMonthData
-  } = useFinanceData(userId);
+    getMonthData,
+    loadMonthlyTrendData
+  } = useReportsData(userId);
+
+  console.log('categories', categories);
+  console.log('transactions', transactions);
+  console.log('loading', loading);
+  console.log('currentMonth', currentMonth);
 
   // Debug logs
   console.log('Relatórios - Estado atual:', {
@@ -98,7 +104,7 @@ export default function RelatoriosPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <MonthlyTrend 
           months={allMonths.slice(0, 6)} 
-          getMonthData={getMonthData}
+          loadMonthlyTrendData={loadMonthlyTrendData}
         />
         <CategoryBreakdown 
           categories={categories}
@@ -210,32 +216,45 @@ function IncomeChart({ categories, total, title }: {
 
 function MonthlyTrend({ 
   months, 
-  getMonthData 
+  loadMonthlyTrendData 
 }: { 
   months: string[];
-  getMonthData: (month: string) => any;
+  loadMonthlyTrendData: (months: string[]) => Promise<Record<string, any[]>>;
 }) {
   const [monthlyData, setMonthlyData] = useState<Array<{month: string, income: number, expenses: number, balance: number}>>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loadMonthlyData = async () => {
-      const data = await Promise.all(
-        months.map(async (month) => {
-          const data = await getMonthData(month);
-          const income = (data.transactions || [])
+    const loadData = async () => {
+      if (months.length === 0) return;
+      
+      setLoading(true);
+      try {
+        // Carregar dados de todos os meses de uma vez
+        const trendData = await loadMonthlyTrendData(months);
+        
+        // Processar dados
+        const processedData = months.map(month => {
+          const transactions = trendData[month] || [];
+          const income = transactions
             .filter((t: any) => t.type === 'income')
             .reduce((sum: number, t: any) => sum + t.amount, 0);
-          const expenses = (data.transactions || [])
+          const expenses = transactions
             .filter((t: any) => t.type === 'expense')
             .reduce((sum: number, t: any) => sum + t.amount, 0);
           return { month, income, expenses, balance: income - expenses };
-        })
-      );
-      setMonthlyData(data);
+        });
+        
+        setMonthlyData(processedData);
+      } catch (error) {
+        console.error('Erro ao carregar dados de tendência:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    loadMonthlyData();
-  }, [months, getMonthData]);
+    loadData();
+  }, [months, loadMonthlyTrendData]);
 
   const maxValue = Math.max(...monthlyData.map(d => Math.max(d.income, d.expenses)));
 
