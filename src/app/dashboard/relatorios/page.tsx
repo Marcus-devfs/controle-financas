@@ -4,12 +4,14 @@ import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { Category } from "@/lib/types";
 import { useUserId } from "../layout";
+import { useState, useEffect } from "react";
 
 export default function RelatoriosPage() {
   const userId = useUserId();
   
   const { 
-    currentMonthData, 
+    transactions,
+    categories,
     loading, 
     currentMonth,
     setCurrentMonth, 
@@ -17,7 +19,15 @@ export default function RelatoriosPage() {
     getMonthData
   } = useFinanceData(userId);
 
-  if (loading || !currentMonthData) {
+  // Debug logs
+  console.log('Relatórios - Estado atual:', {
+    loading,
+    transactionsCount: transactions?.length || 0,
+    categoriesCount: categories?.length || 0,
+    currentMonth
+  });
+
+  if (loading || !transactions || !categories) {
     return <div className="space-y-4">Carregando...</div>;
   }
 
@@ -28,30 +38,24 @@ export default function RelatoriosPage() {
   }
 
   // Calcular dados para gráficos
-  const categoryExpenses = currentMonthData.categories
+  const categoryExpenses = categories
     .filter(cat => cat.type === 'expense')
     .map(category => {
-      const total = [
-        ...currentMonthData.fixedExpenses,
-        ...currentMonthData.variableExpenses
-      ]
-      .filter(t => t.categoryId === category.id)
-      .reduce((sum, t) => sum + t.amount, 0);
+      const total = transactions
+        .filter(t => t.type === 'expense' && t.categoryId === category.id)
+        .reduce((sum, t) => sum + t.amount, 0);
       
       return { ...category, total };
     })
     .filter(cat => cat.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  const categoryIncome = currentMonthData.categories
+  const categoryIncome = categories
     .filter(cat => cat.type === 'income')
     .map(category => {
-      const total = [
-        ...currentMonthData.fixedIncome,
-        ...currentMonthData.variableIncome
-      ]
-      .filter(t => t.categoryId === category.id)
-      .reduce((sum, t) => sum + t.amount, 0);
+      const total = transactions
+        .filter(t => t.type === 'income' && t.categoryId === category.id)
+        .reduce((sum, t) => sum + t.amount, 0);
       
       return { ...category, total };
     })
@@ -97,11 +101,11 @@ export default function RelatoriosPage() {
           getMonthData={getMonthData}
         />
         <CategoryBreakdown 
-          categories={currentMonthData.categories}
-          monthData={currentMonthData}
+          categories={categories}
+          monthData={getMonthData(currentMonth)}
         />
         <QuickStats 
-          monthData={currentMonthData}
+          monthData={getMonthData(currentMonth)}
         />
       </div>
     </div>
@@ -211,14 +215,27 @@ function MonthlyTrend({
   months: string[];
   getMonthData: (month: string) => any;
 }) {
-  const monthlyData = months.map(month => {
-    const data = getMonthData(month);
-    const income = data.fixedIncome.reduce((sum: number, t: any) => sum + t.amount, 0) +
-                  data.variableIncome.reduce((sum: number, t: any) => sum + t.amount, 0);
-    const expenses = data.fixedExpenses.reduce((sum: number, t: any) => sum + t.amount, 0) +
-                    data.variableExpenses.reduce((sum: number, t: any) => sum + t.amount, 0);
-    return { month, income, expenses, balance: income - expenses };
-  });
+  const [monthlyData, setMonthlyData] = useState<Array<{month: string, income: number, expenses: number, balance: number}>>([]);
+
+  useEffect(() => {
+    const loadMonthlyData = async () => {
+      const data = await Promise.all(
+        months.map(async (month) => {
+          const data = await getMonthData(month);
+          const income = (data.transactions || [])
+            .filter((t: any) => t.type === 'income')
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+          const expenses = (data.transactions || [])
+            .filter((t: any) => t.type === 'expense')
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+          return { month, income, expenses, balance: income - expenses };
+        })
+      );
+      setMonthlyData(data);
+    };
+
+    loadMonthlyData();
+  }, [months, getMonthData]);
 
   const maxValue = Math.max(...monthlyData.map(d => Math.max(d.income, d.expenses)));
 
@@ -264,14 +281,8 @@ function CategoryBreakdown({
   categories: Category[];
   monthData: any;
 }) {
-  const categoryStats = categories.map(category => {
-    const transactions = [
-      ...monthData.fixedIncome,
-      ...monthData.variableIncome,
-      ...monthData.fixedExpenses,
-      ...monthData.variableExpenses,
-      ...monthData.investments
-    ].filter((t: any) => t.categoryId === category.id);
+  const categoryStats = categories?.map(category => {
+    const transactions = monthData?.transactions?.filter((t: any) => t.categoryId === category.id) || [];
 
     const total = transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
     const count = transactions.length;
@@ -312,11 +323,15 @@ function CategoryBreakdown({
 }
 
 function QuickStats({ monthData }: { monthData: any }) {
-  const totalIncome = monthData.fixedIncome.reduce((sum: number, t: any) => sum + t.amount, 0) +
-                     monthData.variableIncome.reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalExpenses = monthData.fixedExpenses.reduce((sum: number, t: any) => sum + t.amount, 0) +
-                       monthData.variableExpenses.reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalInvestments = monthData.investments.reduce((sum: number, t: any) => sum + t.amount, 0);
+  const totalIncome = (monthData?.transactions || [])
+    .filter((t: any) => t.type === 'income')
+    .reduce((sum: number, t: any) => sum + t.amount, 0);
+  const totalExpenses = (monthData?.transactions || [])
+    .filter((t: any) => t.type === 'expense')
+    .reduce((sum: number, t: any) => sum + t.amount, 0);
+  const totalInvestments = (monthData?.transactions || [])
+    .filter((t: any) => t.type === 'investment')
+    .reduce((sum: number, t: any) => sum + t.amount, 0);
   const balance = totalIncome - totalExpenses;
 
   const savingsRate = totalIncome > 0 ? ((balance - totalInvestments) / totalIncome) * 100 : 0;

@@ -1,8 +1,22 @@
-import { getUser } from "@/lib/auth";
-import Link from "next/link";
+"use client";
 
-export default async function Home() {
-  const user = await getUser();
+import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+
+export default function Home() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen grid place-items-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-2 text-sm text-foreground/70">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen grid place-items-center p-8">
       <div className="text-center max-w-xl">
@@ -11,7 +25,7 @@ export default async function Home() {
           Organize suas receitas, despesas, cartões e investimentos em um só lugar.
         </p>
         <div className="flex items-center justify-center gap-3">
-          {user ? (
+          {isAuthenticated ? (
             <Link className="px-4 h-10 rounded-md bg-foreground text-background grid place-items-center" href="/dashboard">
               Ir para o dashboard
             </Link>

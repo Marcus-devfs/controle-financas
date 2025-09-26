@@ -5,6 +5,7 @@ import { formatCurrency, formatMonth } from "@/lib/data";
 import { useState } from "react";
 import { Transaction, Category } from "@/lib/types";
 import { useUserId } from "../layout";
+import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
 
 export default function InvestimentosPage() {
   const userId = useUserId();
@@ -12,7 +13,8 @@ export default function InvestimentosPage() {
   const [editingInvestment, setEditingInvestment] = useState<Transaction | null>(null);
   
   const { 
-    currentMonthData, 
+    transactions,
+    categories,
     loading, 
     currentMonth,
     setCurrentMonth, 
@@ -22,7 +24,7 @@ export default function InvestimentosPage() {
     deleteTransaction
   } = useFinanceData(userId);
 
-  if (loading || !currentMonthData) {
+  if (loading || !transactions) {
     return <div className="space-y-4">Carregando...</div>;
   }
 
@@ -32,8 +34,8 @@ export default function InvestimentosPage() {
     allMonths.unshift(currentMonth);
   }
 
-  const investments = currentMonthData.investments;
-  const investmentCategories = currentMonthData.categories.filter(cat => cat.type === 'investment');
+  const investments = transactions.filter(t => t.type === 'investment');
+  const investmentCategories = categories.filter(cat => cat.type === 'investment');
   
   const totalInvestments = investments.reduce((sum, t) => sum + t.amount, 0);
   const totalByCategory = investmentCategories.map(category => {
@@ -279,9 +281,21 @@ function InvestmentModal({
     isFixed: false // Investimentos não são fixos
   });
 
+  const [amountDisplay, setAmountDisplay] = useState(
+    investment?.amount ? formatCurrencyInput(investment.amount) : ''
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData as Omit<Transaction, 'id' | 'month' | 'type'>);
+    onSave({
+      ...formData,
+      amount: parseCurrencyInputNew(amountDisplay)
+    } as Omit<Transaction, 'id' | 'month' | 'type'>);
+  };
+
+  const handleAmountChange = (value: string) => {
+    const formatted = formatCurrencyWhileTyping(value);
+    setAmountDisplay(formatted);
   };
 
   return (
@@ -307,11 +321,11 @@ function InvestmentModal({
           <div>
             <label className="block text-sm font-medium mb-1">Valor</label>
             <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+              type="text"
+              value={amountDisplay}
+              onChange={(e) => handleAmountChange(e.target.value)}
               className="w-full p-3 rounded-lg border border-black/10 dark:border-white/10 bg-background text-foreground"
+              placeholder="0,00"
               required
             />
           </div>

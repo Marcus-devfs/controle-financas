@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/hooks/useAuth";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -14,11 +16,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Finanças Pessoais",
-  description: "Sistema completo de gestão financeira pessoal",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,10 +23,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
+      <head>
+        <title>Finanças Pessoais</title>
+        <meta name="description" content="Sistema completo de gestão financeira pessoal" />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

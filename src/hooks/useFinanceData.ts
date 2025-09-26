@@ -2,156 +2,400 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  UserData, 
-  MonthlyData, 
   Transaction, 
   Category, 
   DashboardStats,
   CreditCard
 } from '@/lib/types';
 import { 
-  getUserData, 
-  saveUserData, 
-  getMonthlyData, 
-  addTransaction, 
-  updateTransaction, 
-  deleteTransaction, 
-  addCategory,
-  calculateStatsWithCards,
-  getCurrentMonth,
-  addCreditCard,
-  updateCreditCard,
-  deleteCreditCard,
-  generateRecurringTransactions
-} from '@/lib/data';
+  apiClient,
+  Transaction as ApiTransaction,
+  Category as ApiCategory,
+  CreditCard as ApiCreditCard,
+  DashboardStats as ApiDashboardStats
+} from '@/lib/api';
+import { getCurrentMonth } from '@/lib/data';
+
+// Funções de conversão entre tipos da API e tipos do frontend
+function convertApiTransaction(apiTransaction: ApiTransaction): Transaction {
+  return {
+    id: apiTransaction._id,
+    categoryId: apiTransaction.categoryId,
+    description: apiTransaction.description,
+    amount: apiTransaction.amount,
+    date: apiTransaction.date,
+    type: apiTransaction.type,
+    isFixed: apiTransaction.isFixed,
+    isRecurring: apiTransaction.isRecurring,
+    recurringRule: apiTransaction.recurringRule ? {
+      id: `${apiTransaction._id}-recurring`,
+      ...apiTransaction.recurringRule
+    } : undefined,
+    dayOfMonth: apiTransaction.dayOfMonth,
+    creditCardId: apiTransaction.creditCardId,
+    installmentInfo: apiTransaction.installmentInfo,
+    month: apiTransaction.month
+  };
+}
+
+function convertApiCategory(apiCategory: ApiCategory): Category {
+  return {
+    id: apiCategory._id,
+    name: apiCategory.name,
+    type: apiCategory.type,
+    color: apiCategory.color
+  };
+}
+
+function convertApiCreditCard(apiCard: ApiCreditCard): CreditCard {
+  return {
+    id: apiCard._id,
+    name: apiCard.name,
+    lastFourDigits: apiCard.lastFourDigits,
+    brand: apiCard.brand,
+    limit: apiCard.limit,
+    closingDay: apiCard.closingDay,
+    dueDay: apiCard.dueDay,
+    color: apiCard.color,
+    isActive: apiCard.isActive
+  };
+}
 
 export function useFinanceData(userId: string) {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [currentMonthData, setCurrentMonthData] = useState<MonthlyData | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonthState] = useState<string>(getCurrentMonth());
+  const [error, setError] = useState<string | null>(null);
   
   // Ref para evitar loops infinitos
   const isInitialized = useRef(false);
 
-  const loadData = useCallback((month?: string) => {
+  // Carregar dados globais (categorias e cartões) apenas uma vez
+  const loadGlobalData = useCallback(async () => {
     if (typeof window === 'undefined' || !userId) return;
     
-    setLoading(true);
-    const data = getUserData(userId);
-    setUserData(data);
-    
-    const targetMonth = month || data.currentMonth || getCurrentMonth();
-    const monthData = getMonthlyData(userId, targetMonth);
-    setCurrentMonthData(monthData);
-    
-    const calculatedStats = calculateStatsWithCards(monthData);
-    setStats(calculatedStats);
-    setCurrentMonthState(targetMonth);
-    setLoading(false);
+    try {
+      console.log('Carregando dados globais para userId:', userId);
+      
+      const [categoriesData, creditCardsData] = await Promise.all([
+        apiClient.getCategories(),
+        apiClient.getCreditCards(true)
+      ]);
+      
+      console.log('Dados globais carregados:', {
+        categories: categoriesData.length,
+        creditCards: creditCardsData.length
+      });
+      
+      setCategories(categoriesData.map(convertApiCategory));
+      setCreditCards(creditCardsData.map(convertApiCreditCard));
+    } catch (error: any) {
+      console.error('Erro ao carregar dados globais:', error);
+    }
   }, [userId]);
+
+  // Carregar dados específicos do mês (transações e stats)
+  const loadMonthData = useCallback(async (month: string) => {
+    if (typeof window === 'undefined' || !userId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Carregando dados do mês:', month, 'userId:', userId);
+      
+      const [transactionsData, statsData] = await Promise.all([
+        apiClient.getTransactionsByMonth(month),
+        apiClient.getStats(month)
+      ]);
+      
+      console.log('Dados do mês carregados:', {
+        transactions: transactionsData.length,
+        stats: statsData
+      });
+      
+      setTransactions(transactionsData.map(convertApiTransaction));
+      setStats(statsData);
+      setCurrentMonthState(month);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao carregar dados do mês');
+      console.error('Erro ao carregar dados do mês:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  // Função principal que carrega tudo
+  const loadData = useCallback(async (month?: string) => {
+    const targetMonth = month || currentMonth;
+    
+    // Carregar dados globais apenas se ainda não foram carregados
+    if (categories.length === 0 || creditCards.length === 0) {
+      await loadGlobalData();
+    }
+    
+    // Carregar dados do mês
+    await loadMonthData(targetMonth);
+  }, [userId, currentMonth, categories.length, creditCards.length, loadGlobalData, loadMonthData]);
 
   // Carregar dados iniciais apenas uma vez
   useEffect(() => {
-    if (!isInitialized.current && userId) {
+    if (userId && !isInitialized.current) {
+      console.log('Inicializando dados para userId:', userId);
       isInitialized.current = true;
-      loadData();
+      
+      // Carregar dados diretamente sem usar loadData para evitar loop
+      const initializeData = async () => {
+        try {
+          // Carregar dados globais
+          const [categoriesData, creditCardsData] = await Promise.all([
+            apiClient.getCategories(),
+            apiClient.getCreditCards(true)
+          ]);
+          
+          setCategories(categoriesData.map(convertApiCategory));
+          setCreditCards(creditCardsData.map(convertApiCreditCard));
+          
+          // Carregar dados do mês atual
+          const [transactionsData, statsData] = await Promise.all([
+            apiClient.getTransactionsByMonth(currentMonth),
+            apiClient.getStats(currentMonth)
+          ]);
+          
+          setTransactions(transactionsData.map(convertApiTransaction));
+          setStats(statsData);
+          setLoading(false);
+        } catch (error: any) {
+          console.error('Erro ao inicializar dados:', error);
+          setError(error.message || 'Erro ao carregar dados');
+          setLoading(false);
+        }
+      };
+      
+      initializeData();
     }
-  }, [userId, loadData]);
+  }, [userId, currentMonth]); // Removido loadData para evitar loop
 
   const setCurrentMonth = useCallback((month: string) => {
-    if (!userData || month === currentMonth) return;
+    if (month === currentMonth) return;
     
-    // Atualizar o mês atual no userData
-    const updatedData = { ...userData, currentMonth: month };
-    saveUserData(updatedData);
-    setUserData(updatedData);
-    
-    // Carregar dados do novo mês
-    loadData(month);
-  }, [userData, currentMonth, loadData]);
+    // Carregar apenas dados do mês (transações e stats)
+    loadMonthData(month);
+  }, [currentMonth, loadMonthData]);
 
-  const addNewTransaction = useCallback((
+  const addNewTransaction = useCallback(async (
     transaction: Omit<Transaction, 'id' | 'month'>
   ) => {
-    if (!userData) return;
-    
-    addTransaction(userId, currentMonth, transaction);
-    
-    // Se for recorrente, gerar transações futuras
-    if (transaction.isRecurring) {
-      generateRecurringTransactions(userId, transaction, currentMonth);
+    try {
+      setError(null);
+      
+      // Converter para formato da API
+      const apiTransaction: Omit<ApiTransaction, '_id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+        categoryId: transaction.categoryId,
+        description: transaction.description,
+        amount: transaction.amount,
+        date: transaction.date,
+        type: transaction.type,
+        isFixed: transaction.isFixed,
+        isRecurring: transaction.isRecurring,
+        recurringRule: transaction.recurringRule,
+        dayOfMonth: transaction.dayOfMonth,
+        creditCardId: transaction.creditCardId,
+        installmentInfo: transaction.installmentInfo,
+        month: currentMonth
+      };
+      
+      await apiClient.createTransaction(apiTransaction);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao criar transação');
+      throw error;
     }
-    
-    loadData(currentMonth); // Recarrega os dados do mês atual
-  }, [userData, userId, currentMonth, loadData]);
+  }, [userId, currentMonth, loadData]);
 
-  const updateExistingTransaction = useCallback((
+  const updateExistingTransaction = useCallback(async (
     transactionId: string,
     updates: Partial<Transaction>
   ) => {
-    if (!userData) return;
-    
-    updateTransaction(userId, currentMonth, transactionId, updates);
-    loadData(currentMonth); // Recarrega os dados do mês atual
-  }, [userData, userId, currentMonth, loadData]);
+    try {
+      setError(null);
+      
+      await apiClient.updateTransaction(transactionId, updates);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao atualizar transação');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
-  const removeTransaction = useCallback((transactionId: string) => {
-    if (!userData) return;
-    
-    deleteTransaction(userId, currentMonth, transactionId);
-    loadData(currentMonth); // Recarrega os dados do mês atual
-  }, [userData, userId, currentMonth, loadData]);
+  const removeTransaction = useCallback(async (transactionId: string) => {
+    try {
+      setError(null);
+      
+      await apiClient.deleteTransaction(transactionId);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao deletar transação');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
-  const addNewCategory = useCallback((category: Omit<Category, 'id'>) => {
-    if (!userData) return;
-    
-    addCategory(userId, currentMonth, category);
-    loadData(currentMonth); // Recarrega os dados do mês atual
-  }, [userData, userId, currentMonth, loadData]);
+  const addNewCategory = useCallback(async (category: Omit<Category, 'id'>) => {
+    try {
+      setError(null);
+      
+      await apiClient.createCategory(category.name, category.type, category.color);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao criar categoria');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
   const getAvailableMonths = useCallback(() => {
-    if (!userData) return [];
-    return userData.monthlyData.map(m => m.month).sort().reverse();
-  }, [userData]);
+    const months = new Set<string>();
+    const currentDate = new Date();
+    
+    // Adicionar últimos 12 meses (histórico)
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      months.add(date.toISOString().slice(0, 7));
+    }
+    
+    // Adicionar meses futuros baseados em transações recorrentes
+    const recurringTransactions = transactions.filter(t => t.recurringRule);
+    
+    recurringTransactions.forEach(transaction => {
+      if (transaction.recurringRule) {
+        const startDate = new Date(transaction.date);
+        const endDate = transaction.recurringRule.endDate ? new Date(transaction.recurringRule.endDate) : null;
+        const frequency = transaction.recurringRule.type;
+        
+        // Adicionar até 12 meses no futuro ou até a data de fim
+        for (let i = 1; i <= 12; i++) {
+          let nextDate: Date;
+          
+          switch (frequency) {
+            case 'monthly':
+              nextDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, startDate.getDate());
+              break;
+            case 'weekly':
+              nextDate = new Date(startDate.getTime() + (i * 7 * 24 * 60 * 60 * 1000));
+              break;
+            case 'yearly':
+              nextDate = new Date(startDate.getFullYear() + i, startDate.getMonth(), startDate.getDate());
+              break;
+            default:
+              nextDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, startDate.getDate());
+          }
+          
+          // Se há data de fim e já passou, parar
+          if (endDate && nextDate > endDate) {
+            break;
+          }
+          
+          // Se a data futura não passou do limite de 12 meses, adicionar
+          const monthsDiff = (nextDate.getFullYear() - currentDate.getFullYear()) * 12 + 
+                           (nextDate.getMonth() - currentDate.getMonth());
+          if (monthsDiff <= 12) {
+            months.add(nextDate.toISOString().slice(0, 7));
+          }
+        }
+      }
+    });
+    
+    // Converter para array e ordenar
+    return Array.from(months).sort();
+  }, [transactions]);
 
-  const getMonthData = useCallback((month: string) => {
-    return getMonthlyData(userId, month);
+  const getMonthData = useCallback(async (month: string) => {
+    try {
+      const transactions = await apiClient.getTransactionsByMonth(month);
+      return { transactions: transactions.map(convertApiTransaction) };
+    } catch (error: any) {
+      setError(error.message || 'Erro ao buscar dados do mês');
+      return { transactions: [] };
+    }
   }, [userId]);
 
   // Funções para cartões de crédito
-  const addNewCreditCard = useCallback((
+  const addNewCreditCard = useCallback(async (
     card: Omit<CreditCard, 'id'>
   ) => {
-    if (!userData) return;
-    
-    addCreditCard(userId, currentMonth, card);
-    loadData(currentMonth);
-  }, [userData, userId, currentMonth, loadData]);
+    try {
+      setError(null);
+      
+      // Converter para formato da API
+      const apiCard: Omit<ApiCreditCard, '_id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+        name: card.name,
+        lastFourDigits: card.lastFourDigits,
+        brand: card.brand,
+        limit: card.limit,
+        closingDay: card.closingDay,
+        dueDay: card.dueDay,
+        color: card.color,
+        isActive: card.isActive
+      };
+      
+      await apiClient.createCreditCard(apiCard);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao criar cartão');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
-  const updateExistingCreditCard = useCallback((
+  const updateExistingCreditCard = useCallback(async (
     cardId: string,
     updates: Partial<CreditCard>
   ) => {
-    if (!userData) return;
-    
-    updateCreditCard(userId, currentMonth, cardId, updates);
-    loadData(currentMonth);
-  }, [userData, userId, currentMonth, loadData]);
+    try {
+      setError(null);
+      
+      await apiClient.updateCreditCard(cardId, updates);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao atualizar cartão');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
-  const removeCreditCard = useCallback((cardId: string) => {
-    if (!userData) return;
-    
-    deleteCreditCard(userId, currentMonth, cardId);
-    loadData(currentMonth);
-  }, [userData, userId, currentMonth, loadData]);
+  const removeCreditCard = useCallback(async (cardId: string) => {
+    try {
+      setError(null);
+      
+      await apiClient.deleteCreditCard(cardId);
+      
+      // Recarregar dados
+      await loadMonthData(currentMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao deletar cartão');
+      throw error;
+    }
+  }, [userId, currentMonth, loadData]);
 
   return {
-    userData,
-    currentMonthData,
+    transactions,
+    categories,
+    creditCards,
     stats,
     loading,
+    error,
     currentMonth,
     setCurrentMonth,
     addTransaction: addNewTransaction,
@@ -163,6 +407,6 @@ export function useFinanceData(userId: string) {
     deleteCreditCard: removeCreditCard,
     getAvailableMonths,
     getMonthData,
-    refreshData: () => loadData(currentMonth)
+    refreshData: () => loadMonthData(currentMonth)
   };
 }

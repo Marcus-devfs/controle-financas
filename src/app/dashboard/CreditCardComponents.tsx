@@ -6,14 +6,14 @@ export function CreditCardExpenses({
   currentMonthData,
   creditCards
 }: {
-  currentMonthData: any;
+  currentMonthData: { transactions: any[]; categories: any[]; creditCards: any[] };
   creditCards: any[];
 }) {
   // Filtrar apenas transações que foram pagas com cartão
-  const cardExpenses = [
-    ...currentMonthData.fixedExpenses.filter((t: any) => t.creditCardId),
-    ...currentMonthData.variableExpenses.filter((t: any) => t.creditCardId)
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  const cardExpenses = currentMonthData.transactions
+    .filter((t: any) => t.creditCardId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
 
   const getCardName = (cardId: string) => {
     const card = creditCards.find((c: any) => c.id === cardId);
@@ -76,13 +76,12 @@ export function CreditCardSummary({
   currentMonthData
 }: {
   creditCards: any[];
-  currentMonthData: any;
+  currentMonthData: { transactions: any[]; categories: any[]; creditCards: any[] };
 }) {
   const totalLimit = creditCards.reduce((sum, card) => sum + card.limit, 0);
-  const usedCredit = [
-    ...currentMonthData.fixedExpenses.filter((t: any) => t.creditCardId),
-    ...currentMonthData.variableExpenses.filter((t: any) => t.creditCardId)
-  ].reduce((sum, expense) => sum + expense.amount, 0);
+  const usedCredit = currentMonthData.transactions
+    .filter((t: any) => t.creditCardId)
+    .reduce((sum, expense) => sum + expense.amount, 0);
   const availableCredit = totalLimit - usedCredit;
   const usagePercentage = totalLimit > 0 ? (usedCredit / totalLimit) * 100 : 0;
 
@@ -143,10 +142,7 @@ export function CreditCardSummary({
             </div>
             <div>
               <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {[
-                  ...currentMonthData.fixedExpenses.filter((t: any) => t.creditCardId),
-                  ...currentMonthData.variableExpenses.filter((t: any) => t.creditCardId)
-                ].length}
+                {currentMonthData?.transactions?.filter((t: any) => t.creditCardId)?.length}
               </div>
               <div className="text-xs text-muted-foreground">Transações</div>
             </div>

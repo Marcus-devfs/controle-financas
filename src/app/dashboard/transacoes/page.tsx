@@ -5,6 +5,7 @@ import { formatCurrency, formatMonth } from "@/lib/data";
 import { useState } from "react";
 import { Transaction, Category } from "@/lib/types";
 import { useUserId } from "../layout";
+import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
 
 export default function TransacoesPage() {
   const userId = useUserId();
@@ -13,7 +14,8 @@ export default function TransacoesPage() {
   const [activeTab, setActiveTab] = useState<'income' | 'expenses'>('expenses');
   
   const { 
-    currentMonthData, 
+    transactions,
+    categories,
     loading, 
     currentMonth,
     setCurrentMonth, 
@@ -24,7 +26,7 @@ export default function TransacoesPage() {
     addCategory
   } = useFinanceData(userId);
 
-  if (loading || !currentMonthData) {
+  if (loading || !transactions) {
     return <div className="space-y-4">Carregando...</div>;
   }
 
@@ -35,15 +37,23 @@ export default function TransacoesPage() {
   }
 
         // Filtrar transações baseado na aba ativa e excluir gastos do cartão
-        const allTransactions = activeTab === 'income' 
-          ? [
-              ...currentMonthData.fixedIncome.map((t: Transaction) => ({ ...t, displayType: 'Receita Fixa', typeCode: 'fixedIncome' })),
-              ...currentMonthData.variableIncome.map((t: Transaction) => ({ ...t, displayType: 'Receita Variável', typeCode: 'variableIncome' }))
-            ]
-          : [
-              ...currentMonthData.fixedExpenses.filter((t: Transaction) => !t.creditCardId).map((t: Transaction) => ({ ...t, displayType: 'Despesa Fixa', typeCode: 'fixedExpenses' })),
-              ...currentMonthData.variableExpenses.filter((t: Transaction) => !t.creditCardId).map((t: Transaction) => ({ ...t, displayType: 'Despesa Variável', typeCode: 'variableExpenses' }))
-            ];
+        const filteredTransactions = transactions.filter(t => {
+          if (activeTab === 'income') {
+            return t.type === 'income';
+          } else {
+            return t.type === 'expense' && !t.creditCardId;
+          }
+        });
+
+        const allTransactions = filteredTransactions.map((t: Transaction) => ({
+          ...t,
+          displayType: t.isFixed ? 
+            (t.type === 'income' ? 'Receita Fixa' : 'Despesa Fixa') :
+            (t.type === 'income' ? 'Receita Variável' : 'Despesa Variável'),
+          typeCode: t.isFixed ? 
+            (t.type === 'income' ? 'fixedIncome' : 'fixedExpenses') :
+            (t.type === 'income' ? 'variableIncome' : 'variableExpenses')
+        }));
         
         const sortedTransactions = allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -108,14 +118,14 @@ export default function TransacoesPage() {
         <div className="lg:col-span-3">
           <TransactionList 
             transactions={sortedTransactions}
-            categories={currentMonthData.categories}
+            categories={categories}
             onEdit={setEditingTransaction}
             onDelete={(id) => deleteTransaction(id)}
           />
         </div>
         <div>
           <CategoryManager 
-            categories={currentMonthData.categories}
+            categories={categories}
             onAddCategory={addCategory}
           />
         </div>
@@ -123,7 +133,7 @@ export default function TransacoesPage() {
 
              {showAddModal && (
                <TransactionModal
-                 categories={currentMonthData.categories}
+                 categories={categories}
                  defaultType={activeTab === 'income' ? 'income' : 'expense'}
                  onSave={(transaction) => {
                    addTransaction(transaction);
@@ -136,7 +146,7 @@ export default function TransacoesPage() {
       {editingTransaction && (
         <TransactionModal
           transaction={editingTransaction}
-          categories={currentMonthData.categories}
+          categories={categories}
           onSave={(transaction) => {
             updateTransaction(editingTransaction.id, transaction);
             setEditingTransaction(null);
@@ -362,15 +372,25 @@ function TransactionModal({
     },
   });
 
+  const [amountDisplay, setAmountDisplay] = useState(
+    transaction?.amount ? formatCurrencyInput(transaction.amount) : ''
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const transactionData = {
       ...formData,
+      amount: parseCurrencyInputNew(amountDisplay),
       recurringRule: formData.isRecurring ? formData.recurringRule : undefined
     };
     
     onSave(transactionData);
+  };
+
+  const handleAmountChange = (value: string) => {
+    const formatted = formatCurrencyWhileTyping(value);
+    setAmountDisplay(formatted);
   };
 
   return (
@@ -399,11 +419,11 @@ function TransactionModal({
           <div>
             <label className="block text-sm font-medium mb-1">Valor</label>
             <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+              type="text"
+              value={amountDisplay}
+              onChange={(e) => handleAmountChange(e.target.value)}
               className="input"
+              placeholder="0,00"
               required
             />
           </div>

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { CreditCard, Category, Transaction } from "@/lib/types";
 import { useUserId } from "../layout";
 import { CardExpensesTab } from "./CardExpensesTab";
+import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
 
 export default function CartoesPage() {
   const userId = useUserId();
@@ -15,7 +16,9 @@ export default function CartoesPage() {
   const [activeTab, setActiveTab] = useState<'cards' | 'expenses'>('cards');
   
   const { 
-    currentMonthData, 
+    transactions,
+    categories,
+    creditCards,
     loading, 
     currentMonth,
     setCurrentMonth, 
@@ -27,7 +30,7 @@ export default function CartoesPage() {
     deleteTransaction
   } = useFinanceData(userId);
 
-  if (loading || !currentMonthData) {
+  if (loading || !transactions) {
     return <div className="space-y-4">Carregando...</div>;
   }
 
@@ -37,14 +40,12 @@ export default function CartoesPage() {
     allMonths.unshift(currentMonth);
   }
 
-  const creditCards = currentMonthData.creditCards || [];
   const totalLimit = creditCards?.length > 0 ? creditCards.reduce((sum, card) => sum + card.limit, 0) : 0;
   
   // Calcular crédito usado baseado nos gastos reais do cartão
-  const usedCredit = [
-    ...currentMonthData.fixedExpenses.filter((t: Transaction) => t.creditCardId),
-    ...currentMonthData.variableExpenses.filter((t: Transaction) => t.creditCardId)
-  ].reduce((sum, expense) => sum + expense.amount, 0);
+  const usedCredit = transactions
+    .filter((t: Transaction) => t.creditCardId)
+    .reduce((sum, expense) => sum + expense.amount, 0);
   
   const availableCredit = totalLimit - usedCredit;
 
@@ -157,7 +158,7 @@ export default function CartoesPage() {
         </>
       ) : (
         <CardExpensesTab 
-          currentMonthData={currentMonthData}
+          currentMonthData={{ transactions, categories, creditCards }}
           creditCards={creditCards}
           onEditTransaction={(transaction) => {
             // TODO: Implementar edição de transação
@@ -195,7 +196,7 @@ export default function CartoesPage() {
       {showExpenseModal && (
         <CardExpenseModal
           cards={creditCards}
-          categories={currentMonthData.categories.filter(cat => cat.type === 'expense')}
+          categories={categories.filter((cat: Category) => cat.type === 'expense')}
           onSave={(expense) => {
             addTransaction(expense);
             setShowExpenseModal(false);
@@ -315,9 +316,21 @@ function CreditCardModal({
     isActive: card?.isActive ?? true
   });
 
+  const [limitDisplay, setLimitDisplay] = useState(
+    card?.limit ? formatCurrencyInput(card.limit) : ''
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...formData,
+      limit: parseCurrencyInputNew(limitDisplay)
+    });
+  };
+
+  const handleLimitChange = (value: string) => {
+    const formatted = formatCurrencyWhileTyping(value);
+    setLimitDisplay(formatted);
   };
 
   return (
@@ -371,11 +384,11 @@ function CreditCardModal({
           <div>
             <label className="block text-sm font-medium mb-1">Limite</label>
             <input
-              type="number"
-              step="0.01"
-              value={formData.limit}
-              onChange={(e) => setFormData({ ...formData, limit: parseFloat(e.target.value) || 0 })}
+              type="text"
+              value={limitDisplay}
+              onChange={(e) => handleLimitChange(e.target.value)}
               className="input"
+              placeholder="0,00"
               required
             />
           </div>
@@ -475,16 +488,19 @@ function CardExpenseModal({
     }
   });
 
+  const [amountDisplay, setAmountDisplay] = useState('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Calcular valor da parcela se for parcelado
     const installmentAmount = formData.installmentInfo.totalInstallments > 1 
-      ? formData.amount / formData.installmentInfo.totalInstallments 
-      : formData.amount;
+      ? parseCurrencyInputNew(amountDisplay) / formData.installmentInfo.totalInstallments 
+      : parseCurrencyInputNew(amountDisplay);
     
     const expenseData = {
       ...formData,
+      amount: parseCurrencyInputNew(amountDisplay),
       type: 'expense' as const,
       recurringRule: formData.isRecurring ? formData.recurringRule : undefined,
       installmentInfo: formData.installmentInfo.totalInstallments > 1 ? {
@@ -494,6 +510,11 @@ function CardExpenseModal({
     };
     
     onSave(expenseData);
+  };
+
+  const handleAmountChange = (value: string) => {
+    const formatted = formatCurrencyWhileTyping(value);
+    setAmountDisplay(formatted);
   };
 
   return (
@@ -540,11 +561,11 @@ function CardExpenseModal({
           <div>
             <label className="block text-sm font-medium mb-1">Valor</label>
             <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+              type="text"
+              value={amountDisplay}
+              onChange={(e) => handleAmountChange(e.target.value)}
               className="input"
+              placeholder="0,00"
               required
             />
           </div>
@@ -604,8 +625,8 @@ function CardExpenseModal({
 
             {formData.installmentInfo.totalInstallments > 1 && (
               <div className="text-sm text-muted-foreground">
-                <p>Valor total: {formatCurrency(formData.amount)}</p>
-                <p>Valor da parcela: {formatCurrency(formData.amount / formData.installmentInfo.totalInstallments)}</p>
+                <p>Valor total: {formatCurrency(parseCurrencyInputNew(amountDisplay))}</p>
+                <p>Valor da parcela: {formatCurrency(parseCurrencyInputNew(amountDisplay) / formData.installmentInfo.totalInstallments)}</p>
                 <p>Parcela {formData.installmentInfo.currentInstallment} de {formData.installmentInfo.totalInstallments}</p>
               </div>
             )}

@@ -1,22 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-export default function LoginPage() {
+export default function LoginSimplePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, router]);
+  const { login, error } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +16,8 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       await login(email, password);
-      router.push("/dashboard");
+      // Redirecionar para dashboard após login bem-sucedido
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error("Erro no login:", error);
     } finally {
@@ -33,24 +25,35 @@ export default function LoginPage() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
-          <p className="mt-2 text-sm text-foreground/70">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleMockLogin = () => {
+    // Login mock para testar sem API
+    const mockUser = {
+      id: "test-user",
+      name: "Usuário Teste",
+      email: "teste@exemplo.com"
+    };
+    
+    localStorage.setItem('auth_token', 'mock-token');
+    localStorage.setItem('user_data', JSON.stringify(mockUser));
+    
+    // Recarregar a página para atualizar o estado
+    window.location.href = '/dashboard';
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-xl border border-black/10 dark:border-white/10 p-6 bg-background">
-        <h1 className="text-2xl font-semibold mb-2">Entrar</h1>
+        <h1 className="text-2xl font-semibold mb-2">Login</h1>
         <p className="text-sm text-foreground/70 mb-6">
-          Acesse sua conta para gerenciar suas finanças.
+          Faça login para acessar o dashboard.
         </p>
+        
+        {error && (
+          <div className="mb-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="block text-sm">E-mail</label>
@@ -82,15 +85,22 @@ export default function LoginPage() {
             {isLoading ? "Entrando..." : "Entrar"}
           </button>
         </form>
+        
+        <div className="mt-6">
+          <button
+            onClick={handleMockLogin}
+            className="w-full h-10 rounded-md bg-blue-500 text-white hover:opacity-90 transition"
+          >
+            Login Mock (Sem API)
+          </button>
+        </div>
+        
         <div className="mt-6 text-sm">
-          <span className="text-foreground/70">Novo por aqui?</span>{" "}
-          <Link className="underline" href="/register">
-            Criar conta
-          </Link>
+          <a href="/test" className="underline">
+            Ir para página de teste
+          </a>
         </div>
       </div>
     </div>
   );
 }
-
-

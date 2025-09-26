@@ -5,12 +5,15 @@ import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { useUserId } from "./layout";
 import { CreditCardExpenses, CreditCardSummary } from "./CreditCardComponents";
+import { Transaction } from "@/lib/types";
 
 export default function DashboardHome() {
   const userId = useUserId();
   
   const { 
-    currentMonthData, 
+    transactions,
+    categories,
+    creditCards,
     stats, 
     loading, 
     currentMonth,
@@ -18,7 +21,7 @@ export default function DashboardHome() {
     getAvailableMonths 
   } = useFinanceData(userId);
 
-  if (loading || !stats || !currentMonthData) {
+  if (loading || !stats || !transactions) {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-foreground/10 rounded animate-pulse"></div>
@@ -100,19 +103,19 @@ export default function DashboardHome() {
           fixedExpenses={stats.fixedExpenses}
           variableExpenses={stats.variableExpenses}
         />
-        <RecentTransactions transactions={currentMonthData} />
+        <RecentTransactions transactions={transactions} />
       </div>
 
       {/* Gastos do Cartão */}
-      {currentMonthData.creditCards && currentMonthData.creditCards.length > 0 && (
+      {creditCards && creditCards.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <CreditCardExpenses 
-            currentMonthData={currentMonthData}
-            creditCards={currentMonthData.creditCards}
+            currentMonthData={{ transactions, categories, creditCards }}
+            creditCards={creditCards}
           />
           <CreditCardSummary 
-            creditCards={currentMonthData.creditCards}
-            currentMonthData={currentMonthData}
+            creditCards={creditCards}
+            currentMonthData={{ transactions, categories, creditCards }}
           />
         </div>
       )}
@@ -251,14 +254,16 @@ function IncomeExpenseBreakdown({
   );
 }
 
-function RecentTransactions({ transactions }: { transactions: any }) {
-  const allTransactions = [
-    ...transactions.fixedIncome.map((t: any) => ({ ...t, type: 'Receita Fixa' })),
-    ...transactions.variableIncome.map((t: any) => ({ ...t, type: 'Receita Variável' })),
-    ...transactions.fixedExpenses.map((t: any) => ({ ...t, type: 'Despesa Fixa' })),
-    ...transactions.variableExpenses.map((t: any) => ({ ...t, type: 'Despesa Variável' })),
-    ...transactions.investments.map((t: any) => ({ ...t, type: 'Investimento' }))
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
+  const allTransactions = transactions
+    .map((t: Transaction) => ({
+      ...t,
+      displayType: t.isFixed ? 
+        (t.type === 'income' ? 'Receita Fixa' : t.type === 'expense' ? 'Despesa Fixa' : 'Investimento') :
+        (t.type === 'income' ? 'Receita Variável' : t.type === 'expense' ? 'Despesa Variável' : 'Investimento')
+    }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
 
   return (
     <div className="card p-6 animate-fade-in">

@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { getUser, logoutUser } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 // Context para compartilhar userId entre componentes
 import { createContext, useContext } from "react";
@@ -12,7 +11,7 @@ const UserContext = createContext<{ userId: string } | null>(null);
 
 export function useUserId() {
   const context = useContext(UserContext);
-  return context?.userId || "user@example.com";
+  return context?.userId || "";
 }
 
 export default function DashboardLayout({
@@ -20,29 +19,21 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    const loadUser = async () => {
-      const userData = await getUser();
-      if (!userData) {
-        router.push('/login');
-        return;
-      }
-      setUser(userData);
-      setLoading(false);
-    };
-    loadUser();
-  }, [router]);
+  // Se não está carregando e não está autenticado, redirecionar
+  if (!isLoading && !isAuthenticated) {
+    router.replace('/login');
+    return null;
+  }
 
-  const handleLogout = async () => {
-    await logoutUser();
+  const handleLogout = () => {
+    logout();
     router.push('/');
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen grid grid-cols-[240px_1fr]">
         <aside className="border-r border-black/10 dark:border-white/10 p-4">
