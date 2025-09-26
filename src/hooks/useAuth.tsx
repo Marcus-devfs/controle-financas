@@ -5,7 +5,7 @@ import { apiClient, User, AuthData } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
+  isLoading: boolean; 
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
