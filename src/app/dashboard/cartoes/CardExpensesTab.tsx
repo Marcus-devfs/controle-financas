@@ -25,7 +25,8 @@ export function CardExpensesTab({
     .filter((t: Transaction) => t.creditCardId && t.type === 'expense')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const getCardName = (cardId: string) => {
+  const getCardName = (cardId: string | undefined) => {
+    if (!cardId) return 'Sem cartão';
     const card = creditCards.find(c => c.id === cardId);
     return card ? `${card.name} - ****${card.lastFourDigits}` : 'Cartão não encontrado';
   };
@@ -43,13 +44,13 @@ export function CardExpensesTab({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card p-6">
           <div className="text-sm text-muted-foreground">Total Gasto no Cartão</div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+          <div className="text-2xl font-bold text-red-600">
             {formatCurrency(totalCardExpenses)}
           </div>
         </div>
         <div className="card p-6">
           <div className="text-sm text-muted-foreground">Número de Transações</div>
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-2xl font-bold text-blue-600">
             {cardExpenses.length}
           </div>
         </div>
@@ -91,12 +92,12 @@ export function CardExpensesTab({
                           </div>
                         )}
                         {expense.isRecurring && (
-                          <div className="text-xs text-blue-600 dark:text-blue-400">
+                          <div className="text-xs text-blue-600">
                             🔄 Recorrente
                           </div>
                         )}
                         {expense.isFixed && (
-                          <div className="text-xs text-orange-600 dark:text-orange-400">
+                          <div className="text-xs text-orange-600">
                             📅 Fixa
                           </div>
                         )}

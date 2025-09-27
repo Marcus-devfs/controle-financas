@@ -46,7 +46,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl border border-black/10 dark:border-white/10 p-6 bg-background">
+      <div className="w-full max-w-md rounded-xl border border-black/10 p-6 bg-background">
         <h1 className="text-2xl font-semibold mb-2">Entrar</h1>
         <p className="text-sm text-foreground/70 mb-6">
           Acesse sua conta para gerenciar suas finanças.
@@ -59,7 +59,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="voce@exemplo.com"
             />
           </div>
@@ -70,7 +70,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="Sua senha"
             />
           </div>

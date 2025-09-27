@@ -170,7 +170,7 @@ export function useReportsData(userId: string) {
     };
     
     initializeData();
-  }, [userId]); // Apenas userId como dependência
+  }, [userId, currentMonth, loadGlobalData, loadCurrentMonthData]);
 
   // Carregar dados quando o mês mudar
   useEffect(() => {

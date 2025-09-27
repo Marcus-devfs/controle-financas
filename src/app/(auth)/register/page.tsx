@@ -63,15 +63,15 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl border border-black/10 dark:border-white/10 p-6 bg-background">
+      <div className="w-full max-w-md rounded-xl border border-black/10 p-6 bg-background">
         <h1 className="text-2xl font-semibold mb-2">Criar conta</h1>
         <p className="text-sm text-foreground/70 mb-6">
           Comece a controlar suas finanças em poucos cliques.
         </p>
         
         {error && (
-          <div className="mb-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200">
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
         
@@ -83,7 +83,7 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="Seu nome"
             />
           </div>
@@ -94,7 +94,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="voce@exemplo.com"
             />
           </div>
@@ -105,7 +105,7 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="Mínimo 6 caracteres"
             />
           </div>
@@ -116,7 +116,7 @@ export default function RegisterPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
+              className="w-full rounded-md border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-foreground/20"
               placeholder="Digite a senha novamente"
             />
           </div>

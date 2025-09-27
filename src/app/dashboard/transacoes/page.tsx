@@ -4,7 +4,7 @@ import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { useState } from "react";
 import { Transaction, Category } from "@/lib/types";
-import { useUserId } from "../layout";
+import { useUserId } from "@/hooks/useUserId";
 import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
 
 export default function TransacoesPage() {
@@ -16,14 +16,16 @@ export default function TransacoesPage() {
   const { 
     transactions,
     categories,
-    loading, 
+    loading,
+    saving, 
     currentMonth,
     setCurrentMonth, 
     getAvailableMonths,
     addTransaction,
     updateTransaction,
     deleteTransaction,
-    addCategory
+    addCategory,
+    deleteCategory
   } = useFinanceData(userId);
 
   if (loading || !transactions) {
@@ -65,7 +67,7 @@ export default function TransacoesPage() {
           <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-background text-foreground"
+            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
           >
             {allMonths.map(month => (
               <option key={month} value={month}>
@@ -127,6 +129,8 @@ export default function TransacoesPage() {
           <CategoryManager 
             categories={categories}
             onAddCategory={addCategory}
+            onDeleteCategory={deleteCategory}
+            saving={saving}
           />
         </div>
       </div>
@@ -135,8 +139,9 @@ export default function TransacoesPage() {
                <TransactionModal
                  categories={categories}
                  defaultType={activeTab === 'income' ? 'income' : 'expense'}
-                 onSave={(transaction) => {
-                   addTransaction(transaction);
+                 saving={saving}
+                 onSave={async (transaction) => {
+                   await addTransaction(transaction);
                    setShowAddModal(false);
                  }}
                  onClose={() => setShowAddModal(false)}
@@ -147,8 +152,9 @@ export default function TransacoesPage() {
         <TransactionModal
           transaction={editingTransaction}
           categories={categories}
-          onSave={(transaction) => {
-            updateTransaction(editingTransaction.id, transaction);
+          saving={saving}
+          onSave={async (transaction) => {
+            await updateTransaction(editingTransaction.id, transaction);
             setEditingTransaction(null);
           }}
           onClose={() => setEditingTransaction(null)}
@@ -171,7 +177,7 @@ function TransactionList({
 }) {
   if (transactions.length === 0) {
     return (
-      <div className="rounded-xl border border-black/10 dark:border-white/10 p-8 text-center">
+      <div className="rounded-xl border border-black/10 p-8 text-center">
         <p className="text-foreground/60">Nenhuma transação registrada para este mês</p>
         <p className="text-sm text-foreground/40 mt-2">Adicione sua primeira transação clicando no botão acima</p>
       </div>
@@ -179,7 +185,7 @@ function TransactionList({
   }
 
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden">
+    <div className="rounded-xl border border-black/10 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-foreground/5">
@@ -220,8 +226,8 @@ function TransactionList({
                 <td className="p-4 text-sm text-foreground/70">{transaction.displayType}</td>
                 <td className={`p-4 text-sm font-medium text-right ${
                   transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
+                    ? 'text-green-600'
+                    : 'text-red-600'
                 }`}>
                   {formatCurrency(transaction.amount)}
                 </td>
@@ -235,7 +241,7 @@ function TransactionList({
                     </button>
                     <button
                       onClick={() => onDelete(transaction.id)}
-                      className="text-xs px-2 py-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 transition"
+                      className="text-xs px-2 py-1 rounded hover:bg-red-100 text-red-600 transition"
                     >
                       Excluir
                     </button>
@@ -252,10 +258,14 @@ function TransactionList({
 
 function CategoryManager({ 
   categories, 
-  onAddCategory 
+  onAddCategory,
+  onDeleteCategory,
+  saving = false
 }: { 
   categories: Category[];
   onAddCategory: (category: Omit<Category, 'id'>) => void;
+  onDeleteCategory: (categoryId: string) => void;
+  saving?: boolean;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCategory, setNewCategory] = useState({
@@ -264,17 +274,23 @@ function CategoryManager({
     color: '#3B82F6'
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newCategory.name.trim()) {
-      onAddCategory(newCategory);
+      await onAddCategory(newCategory);
       setNewCategory({ name: '', type: 'expense', color: '#3B82F6' });
       setShowAddForm(false);
     }
   };
 
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.')) {
+      await onDeleteCategory(categoryId);
+    }
+  };
+
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
+    <div className="rounded-xl border border-black/10 p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold">Categorias</h3>
         <button
@@ -292,29 +308,37 @@ function CategoryManager({
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: category.color }}
             ></div>
-            <span className="text-sm">{category.name}</span>
-            <span className="text-xs text-foreground/60 ml-auto">
+            <span className="text-sm flex-1">{category.name}</span>
+            <span className="text-xs text-foreground/60">
               {category.type === 'income' ? 'Receita' : 
                category.type === 'expense' ? 'Despesa' : 'Investimento'}
             </span>
+            <button
+              onClick={() => handleDeleteCategory(category.id)}
+              disabled={saving}
+              className="ml-2 text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Excluir categoria"
+            >
+              🗑️
+            </button>
           </div>
         ))}
       </div>
 
       {showAddForm && (
-        <form onSubmit={handleSubmit} className="mt-4 p-3 border border-black/10 dark:border-white/10 rounded-lg">
+        <form onSubmit={handleSubmit} className="mt-4 p-3 border border-black/10 rounded-lg">
           <input
             type="text"
             placeholder="Nome da categoria"
             value={newCategory.name}
             onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-            className="w-full p-2 rounded border border-black/10 dark:border-white/10 bg-background text-foreground mb-2"
+            className="w-full p-2 rounded border border-black/10 bg-background text-foreground mb-2"
             required
           />
           <select
             value={newCategory.type}
             onChange={(e) => setNewCategory({ ...newCategory, type: e.target.value as 'income' | 'expense' | 'investment' })}
-            className="w-full p-2 rounded border border-black/10 dark:border-white/10 bg-background text-foreground mb-2"
+            className="w-full p-2 rounded border border-black/10 bg-background text-foreground mb-2"
           >
             <option value="income">Receita</option>
             <option value="expense">Despesa</option>
@@ -323,14 +347,23 @@ function CategoryManager({
           <div className="flex gap-2">
             <button
               type="submit"
-              className="flex-1 px-3 py-2 bg-foreground text-background rounded text-sm hover:opacity-90 transition"
+              disabled={saving}
+              className="flex-1 px-3 py-2 bg-foreground text-background rounded text-sm hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Salvar
+              {saving ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Salvando...
+                </span>
+              ) : (
+                'Salvar'
+              )}
             </button>
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="px-3 py-2 border border-black/10 dark:border-white/10 rounded text-sm hover:bg-foreground/5 transition"
+              disabled={saving}
+              className="px-3 py-2 border border-black/10 rounded text-sm hover:bg-foreground/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
@@ -346,13 +379,15 @@ function TransactionModal({
   categories,
   defaultType = 'expense',
   onSave,
-  onClose
+  onClose,
+  saving = false
 }: {
   transaction?: Transaction;
   categories: Category[];
   defaultType?: 'income' | 'expense' | 'investment';
   onSave: (transaction: Omit<Transaction, 'id' | 'month'>) => void;
   onClose: () => void;
+  saving?: boolean;
 }) {
   const [formData, setFormData] = useState({
     description: transaction?.description || '',
@@ -594,14 +629,23 @@ function TransactionModal({
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="btn btn-primary flex-1 px-4 py-3"
+              disabled={saving}
+              className="btn btn-primary flex-1 px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Salvar
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Salvando...
+                </span>
+              ) : (
+                'Salvar'
+              )}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="btn btn-secondary px-4 py-3"
+              disabled={saving}
+              className="btn btn-secondary px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>

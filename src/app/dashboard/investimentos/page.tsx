@@ -4,7 +4,7 @@ import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { useState } from "react";
 import { Transaction, Category } from "@/lib/types";
-import { useUserId } from "../layout";
+import { useUserId } from "@/hooks/useUserId";
 import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
 
 export default function InvestimentosPage() {

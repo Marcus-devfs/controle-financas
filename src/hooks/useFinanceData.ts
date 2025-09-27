@@ -67,6 +67,7 @@ export function useFinanceData(userId: string) {
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [currentMonth, setCurrentMonthState] = useState<string>(getCurrentMonth());
   const [error, setError] = useState<string | null>(null);
   
@@ -181,6 +182,7 @@ export function useFinanceData(userId: string) {
   ) => {
     try {
       setError(null);
+      setSaving(true);
       
       // Converter para formato da API
       const apiTransaction: Omit<ApiTransaction, '_id' | 'userId' | 'createdAt' | 'updatedAt'> = {
@@ -205,8 +207,10 @@ export function useFinanceData(userId: string) {
     } catch (error: any) {
       setError(error.message || 'Erro ao criar transação');
       throw error;
+    } finally {
+      setSaving(false);
     }
-  }, [userId, currentMonth, loadData]);
+  }, [userId, currentMonth, loadMonthData]);
 
   const updateExistingTransaction = useCallback(async (
     transactionId: string,
@@ -242,16 +246,42 @@ export function useFinanceData(userId: string) {
   const addNewCategory = useCallback(async (category: Omit<Category, 'id'>) => {
     try {
       setError(null);
+      setSaving(true);
       
       await apiClient.createCategory(category.name, category.type, category.color);
       
-      // Recarregar dados
-      await loadMonthData(currentMonth);
+      // Recarregar dados globais (categorias) e dados do mês
+      await Promise.all([
+        loadGlobalData(),
+        loadMonthData(currentMonth)
+      ]);
     } catch (error: any) {
       setError(error.message || 'Erro ao criar categoria');
       throw error;
+    } finally {
+      setSaving(false);
     }
-  }, [userId, currentMonth, loadData]);
+  }, [userId, currentMonth, loadGlobalData, loadMonthData]);
+
+  const deleteCategory = useCallback(async (categoryId: string) => {
+    try {
+      setError(null);
+      setSaving(true);
+      
+      await apiClient.deleteCategory(categoryId);
+      
+      // Recarregar dados globais (categorias) e dados do mês
+      await Promise.all([
+        loadGlobalData(),
+        loadMonthData(currentMonth)
+      ]);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao deletar categoria');
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  }, [userId, currentMonth, loadGlobalData, loadMonthData]);
 
   const getAvailableMonths = useCallback(() => {
     const months = new Set<string>();
@@ -385,6 +415,7 @@ export function useFinanceData(userId: string) {
     creditCards,
     stats,
     loading,
+    saving,
     error,
     currentMonth,
     setCurrentMonth,
@@ -392,6 +423,7 @@ export function useFinanceData(userId: string) {
     updateTransaction: updateExistingTransaction,
     deleteTransaction: removeTransaction,
     addCategory: addNewCategory,
+    deleteCategory,
     addCreditCard: addNewCreditCard,
     updateCreditCard: updateExistingCreditCard,
     deleteCreditCard: removeCreditCard,

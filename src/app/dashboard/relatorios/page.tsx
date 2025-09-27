@@ -3,7 +3,7 @@
 import { useReportsData } from "@/hooks/useReportsData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { Category, Transaction } from "@/lib/types";
-import { useUserId } from "../layout";
+import { useUserId } from "@/hooks/useUserId";
 import { useState, useEffect } from "react";
 import { PieChart } from "@/components/PieChart";
 import { BarChart } from "@/components/BarChart";

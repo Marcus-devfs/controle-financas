@@ -3,7 +3,7 @@
 
 import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
-import { useUserId } from "./layout";
+import { useUserId } from "@/hooks/useUserId";
 import { CreditCardExpenses, CreditCardSummary } from "./CreditCardComponents";
 import { Transaction } from "@/lib/types";
 
