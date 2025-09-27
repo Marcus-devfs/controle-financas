@@ -1,10 +1,14 @@
 "use client";
 
-import { CreditCard, Transaction } from "@/lib/types";
+import { CreditCard, Transaction, Category } from "@/lib/types";
 import { formatCurrency } from "@/lib/data";
 
 interface CardExpensesTabProps {
-  currentMonthData: any;
+  currentMonthData: {
+    transactions: Transaction[];
+    categories: Category[];
+    creditCards: CreditCard[];
+  };
   creditCards: CreditCard[];
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
@@ -17,10 +21,9 @@ export function CardExpensesTab({
   onDeleteTransaction
 }: CardExpensesTabProps) {
   // Filtrar apenas transações que foram pagas com cartão
-  const cardExpenses = [
-    ...currentMonthData.fixedExpenses.filter((t: any) => t.creditCardId),
-    ...currentMonthData.variableExpenses.filter((t: any) => t.creditCardId)
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const cardExpenses = currentMonthData.transactions
+    .filter((t: Transaction) => t.creditCardId && t.type === 'expense')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const getCardName = (cardId: string) => {
     const card = creditCards.find(c => c.id === cardId);
@@ -28,7 +31,7 @@ export function CardExpensesTab({
   };
 
   const getCategoryName = (categoryId: string) => {
-    const category = currentMonthData.categories.find((c: any) => c.id === categoryId);
+    const category = currentMonthData.categories.find((c: Category) => c.id === categoryId);
     return category?.name || 'Sem categoria';
   };
 

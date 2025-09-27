@@ -78,17 +78,10 @@ export function useFinanceData(userId: string) {
     if (typeof window === 'undefined' || !userId) return;
     
     try {
-      console.log('Carregando dados globais para userId:', userId);
-      
       const [categoriesData, creditCardsData] = await Promise.all([
         apiClient.getCategories(),
         apiClient.getCreditCards(true)
       ]);
-      
-      console.log('Dados globais carregados:', {
-        categories: categoriesData.length,
-        creditCards: creditCardsData.length
-      });
       
       setCategories(categoriesData.map(convertApiCategory));
       setCreditCards(creditCardsData.map(convertApiCreditCard));
@@ -105,17 +98,10 @@ export function useFinanceData(userId: string) {
       setLoading(true);
       setError(null);
       
-      console.log('Carregando dados do mês:', month, 'userId:', userId);
-      
       const [transactionsData, statsData] = await Promise.all([
         apiClient.getTransactionsByMonth(month),
         apiClient.getStats(month)
       ]);
-      
-      console.log('Dados do mês carregados:', {
-        transactions: transactionsData.length,
-        stats: statsData
-      });
       
       setTransactions(transactionsData.map(convertApiTransaction));
       setStats(statsData);
@@ -144,7 +130,6 @@ export function useFinanceData(userId: string) {
   // Carregar dados iniciais apenas uma vez
   useEffect(() => {
     if (userId && !isInitialized.current) {
-      console.log('Inicializando dados para userId:', userId);
       isInitialized.current = true;
       
       // Carregar dados diretamente sem usar loadData para evitar loop

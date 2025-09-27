@@ -2,7 +2,7 @@
 
 import { useReportsData } from "@/hooks/useReportsData";
 import { formatCurrency, formatMonth } from "@/lib/data";
-import { Category } from "@/lib/types";
+import { Category, Transaction } from "@/lib/types";
 import { useUserId } from "../layout";
 import { useState, useEffect } from "react";
 
@@ -20,19 +20,6 @@ export default function RelatoriosPage() {
     loadMonthlyTrendData
   } = useReportsData(userId);
 
-  console.log('categories', categories);
-  console.log('transactions', transactions);
-  console.log('loading', loading);
-  console.log('currentMonth', currentMonth);
-
-  // Debug logs
-  console.log('Relatórios - Estado atual:', {
-    loading,
-    transactionsCount: transactions?.length || 0,
-    categoriesCount: categories?.length || 0,
-    currentMonth
-  });
-
   if (loading || !transactions || !categories) {
     return <div className="space-y-4">Carregando...</div>;
   }
@@ -43,13 +30,18 @@ export default function RelatoriosPage() {
     allMonths.unshift(currentMonth);
   }
 
-  // Calcular dados para gráficos
+  // Verificar se as transações estão no mês correto
+  const currentMonthTransactions = transactions.filter(t => t.month === currentMonth);
+
+  // Calcular dados para gráficos usando apenas transações do mês atual
   const categoryExpenses = categories
     .filter(cat => cat.type === 'expense')
     .map(category => {
-      const total = transactions
-        .filter(t => t.type === 'expense' && t.categoryId === category.id)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const categoryTransactions = currentMonthTransactions.filter(t => {
+        const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+        return t.type === 'expense' && categoryId === category.id;
+      });
+      const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
       
       return { ...category, total };
     })
@@ -59,9 +51,11 @@ export default function RelatoriosPage() {
   const categoryIncome = categories
     .filter(cat => cat.type === 'income')
     .map(category => {
-      const total = transactions
-        .filter(t => t.type === 'income' && t.categoryId === category.id)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const categoryTransactions = currentMonthTransactions.filter(t => {
+        const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+        return t.type === 'income' && categoryId === category.id;
+      });
+      const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
       
       return { ...category, total };
     })
@@ -108,10 +102,10 @@ export default function RelatoriosPage() {
         />
         <CategoryBreakdown 
           categories={categories}
-          monthData={getMonthData(currentMonth)}
+          transactions={currentMonthTransactions}
         />
         <QuickStats 
-          monthData={getMonthData(currentMonth)}
+          transactions={currentMonthTransactions}
         />
       </div>
     </div>
@@ -295,19 +289,29 @@ function MonthlyTrend({
 
 function CategoryBreakdown({ 
   categories, 
-  monthData 
+  transactions 
 }: { 
   categories: Category[];
-  monthData: any;
+  transactions: Transaction[];
 }) {
-  const categoryStats = categories?.map(category => {
-    const transactions = monthData?.transactions?.filter((t: any) => t.categoryId === category.id) || [];
 
-    const total = transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
-    const count = transactions.length;
+  const categoryStats = categories?.map(category => {
+    const categoryTransactions = transactions.filter((t: Transaction) => {
+      const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+      return categoryId === category.id;
+    });
+
+    const total = categoryTransactions.reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+    const count = categoryTransactions.length;
+
 
     return { ...category, total, count };
   }).filter(cat => cat.total > 0).sort((a, b) => b.total - a.total);
+
+  console.log('categoryStats', categoryStats);
+  console.log('categories', categories);
+  console.log('transactions', transactions);
+
 
   return (
     <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
@@ -341,16 +345,16 @@ function CategoryBreakdown({
   );
 }
 
-function QuickStats({ monthData }: { monthData: any }) {
-  const totalIncome = (monthData?.transactions || [])
-    .filter((t: any) => t.type === 'income')
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalExpenses = (monthData?.transactions || [])
-    .filter((t: any) => t.type === 'expense')
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalInvestments = (monthData?.transactions || [])
-    .filter((t: any) => t.type === 'investment')
-    .reduce((sum: number, t: any) => sum + t.amount, 0);
+function QuickStats({ transactions }: { transactions: Transaction[] }) {
+  const totalIncome = transactions
+    .filter((t: Transaction) => t.type === 'income')
+    .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+  const totalExpenses = transactions
+    .filter((t: Transaction) => t.type === 'expense')
+    .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+  const totalInvestments = transactions
+    .filter((t: Transaction) => t.type === 'investment')
+    .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
   const balance = totalIncome - totalExpenses;
 
   const savingsRate = totalIncome > 0 ? ((balance - totalInvestments) / totalIncome) * 100 : 0;
