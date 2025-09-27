@@ -47,7 +47,7 @@
   --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0f172a;
     --foreground: #f8fafc;
@@ -69,7 +69,7 @@
     --input: #334155;
     --ring: #3b82f6;
   }
-}
+} */
 
 * {
   border-color: var(--border);

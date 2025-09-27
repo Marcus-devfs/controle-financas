@@ -5,6 +5,8 @@ import { formatCurrency, formatMonth } from "@/lib/data";
 import { Category, Transaction } from "@/lib/types";
 import { useUserId } from "../layout";
 import { useState, useEffect } from "react";
+import { PieChart } from "@/components/PieChart";
+import { BarChart } from "@/components/BarChart";
 
 export default function RelatoriosPage() {
   const userId = useUserId();
@@ -72,7 +74,7 @@ export default function RelatoriosPage() {
         <select
           value={currentMonth}
           onChange={(e) => setCurrentMonth(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-background text-foreground"
+          className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
         >
           {allMonths.map(month => (
             <option key={month} value={month}>
@@ -108,6 +110,65 @@ export default function RelatoriosPage() {
           transactions={currentMonthTransactions}
         />
       </div>
+
+      {/* NOVOS GRÁFICOS - Adicionados abaixo de tudo */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold mb-6 text-center">📊 Novos Gráficos Visuais</h2>
+        
+        {/* Gráficos de Pizza */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <PieChart 
+            data={categoryExpenses.map(cat => ({
+              name: cat.name,
+              value: cat.total,
+              color: cat.color
+            }))}
+            total={totalExpenses}
+            title="🥧 Despesas por Categoria (Pizza)"
+          />
+          <PieChart 
+            data={categoryIncome.map(cat => ({
+              name: cat.name,
+              value: cat.total,
+              color: cat.color
+            }))}
+            total={totalIncome}
+            title="🥧 Receitas por Categoria (Pizza)"
+          />
+        </div>
+
+        {/* Gráfico Fixas vs Variáveis */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <FixedVsVariableChart 
+            transactions={currentMonthTransactions}
+          />
+          <RecurringVsOneTimeChart 
+            transactions={currentMonthTransactions}
+          />
+        </div>
+
+        {/* Gráfico de Barras para Tendência */}
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          <MonthlyTrendBarChart 
+            months={allMonths.slice(0, 6)} 
+            loadMonthlyTrendData={loadMonthlyTrendData}
+          />
+        </div>
+
+        {/* Gráfico de Comparação por Tipo */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <IncomeVsExpenseChart 
+            transactions={currentMonthTransactions}
+          />
+          <CreditCardExpensesChart 
+            transactions={currentMonthTransactions}
+          />
+          <MonthlyComparisonChart 
+            transactions={currentMonthTransactions}
+            currentMonth={currentMonth}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -118,7 +179,7 @@ function ExpenseChart({ categories, total, title }: {
   title: string;
 }) {
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
+    <div className="rounded-xl border border-black/10 p-6">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       {categories.length === 0 ? (
         <p className="text-foreground/60 text-center py-8">Nenhuma despesa registrada</p>
@@ -165,7 +226,7 @@ function IncomeChart({ categories, total, title }: {
   title: string;
 }) {
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
+    <div className="rounded-xl border border-black/10 p-6">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       {categories.length === 0 ? (
         <p className="text-foreground/60 text-center py-8">Nenhuma receita registrada</p>
@@ -183,7 +244,7 @@ function IncomeChart({ categories, total, title }: {
                     ></div>
                     {category.name}
                   </span>
-                  <span className="font-medium text-green-600 dark:text-green-400">
+                  <span className="font-medium text-green-600">
                     {formatCurrency(category.total)}
                   </span>
                 </div>
@@ -253,14 +314,14 @@ function MonthlyTrend({
   const maxValue = Math.max(...monthlyData.map(d => Math.max(d.income, d.expenses)));
 
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
+    <div className="rounded-xl border border-black/10 p-6">
       <h3 className="text-lg font-semibold mb-4">Tendência Mensal</h3>
       <div className="space-y-4">
         {monthlyData.map((data) => (
           <div key={data.month} className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>{formatMonth(data.month)}</span>
-              <span className={`font-medium ${data.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              <span className={`font-medium ${data.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(data.balance)}
               </span>
             </div>
@@ -314,7 +375,7 @@ function CategoryBreakdown({
 
 
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
+    <div className="rounded-xl border border-black/10 p-6">
       <h3 className="text-lg font-semibold mb-4">Resumo por Categoria</h3>
       <div className="space-y-3">
         {categoryStats.map((category) => (
@@ -360,37 +421,264 @@ function QuickStats({ transactions }: { transactions: Transaction[] }) {
   const savingsRate = totalIncome > 0 ? ((balance - totalInvestments) / totalIncome) * 100 : 0;
 
   return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
+    <div className="rounded-xl border border-black/10 p-6">
       <h3 className="text-lg font-semibold mb-4">Estatísticas Rápidas</h3>
       <div className="space-y-4">
         <div className="text-center p-4 rounded-lg bg-foreground/5">
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+          <div className="text-2xl font-bold text-green-600">
             {formatCurrency(totalIncome)}
           </div>
           <div className="text-sm text-foreground/70">Total de Receitas</div>
         </div>
         
         <div className="text-center p-4 rounded-lg bg-foreground/5">
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+          <div className="text-2xl font-bold text-red-600">
             {formatCurrency(totalExpenses)}
           </div>
           <div className="text-sm text-foreground/70">Total de Despesas</div>
         </div>
         
         <div className="text-center p-4 rounded-lg bg-foreground/5">
-          <div className={`text-2xl font-bold ${balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          <div className={`text-2xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(balance)}
           </div>
           <div className="text-sm text-foreground/70">Saldo do Mês</div>
         </div>
         
         <div className="text-center p-4 rounded-lg bg-foreground/5">
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-2xl font-bold text-blue-600">
             {savingsRate.toFixed(1)}%
           </div>
           <div className="text-sm text-foreground/70">Taxa de Poupança</div>
         </div>
       </div>
     </div>
+  );
+}
+
+// NOVOS COMPONENTES DE GRÁFICOS
+
+function FixedVsVariableChart({ transactions }: { transactions: Transaction[] }) {
+  const fixedExpenses = transactions
+    .filter(t => t.type === 'expense' && t.isFixed)
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const variableExpenses = transactions
+    .filter(t => t.type === 'expense' && !t.isFixed)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpenses = fixedExpenses + variableExpenses;
+
+  const data = [
+    {
+      name: 'Despesas Fixas',
+      value: fixedExpenses,
+      color: '#ef4444'
+    },
+    {
+      name: 'Despesas Variáveis',
+      value: variableExpenses,
+      color: '#f97316'
+    }
+  ].filter(item => item.value > 0);
+
+  return (
+    <PieChart 
+      data={data}
+      total={totalExpenses}
+      title="💰 Despesas Fixas vs Variáveis"
+    />
+  );
+}
+
+function RecurringVsOneTimeChart({ transactions }: { transactions: Transaction[] }) {
+  const recurringExpenses = transactions
+    .filter(t => t.type === 'expense' && t.isRecurring)
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const oneTimeExpenses = transactions
+    .filter(t => t.type === 'expense' && !t.isRecurring)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpenses = recurringExpenses + oneTimeExpenses;
+
+  const data = [
+    {
+      name: 'Despesas Recorrentes',
+      value: recurringExpenses,
+      color: '#8b5cf6'
+    },
+    {
+      name: 'Despesas Únicas',
+      value: oneTimeExpenses,
+      color: '#06b6d4'
+    }
+  ].filter(item => item.value > 0);
+
+  return (
+    <PieChart 
+      data={data}
+      total={totalExpenses}
+      title="🔄 Despesas Recorrentes vs Únicas"
+    />
+  );
+}
+
+function MonthlyTrendBarChart({ 
+  months, 
+  loadMonthlyTrendData 
+}: { 
+  months: string[];
+  loadMonthlyTrendData: (months: string[]) => Promise<Record<string, any[]>>;
+}) {
+  const [monthlyData, setMonthlyData] = useState<Array<{month: string, income: number, expenses: number, balance: number}>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (months.length === 0) return;
+      
+      setLoading(true);
+      try {
+        const trendData = await loadMonthlyTrendData(months);
+        
+        const processedData = months.map(month => {
+          const transactions = trendData[month] || [];
+          const income = transactions
+            .filter((t: any) => t.type === 'income')
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+          const expenses = transactions
+            .filter((t: any) => t.type === 'expense')
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+          return { month, income, expenses, balance: income - expenses };
+        });
+        
+        setMonthlyData(processedData);
+      } catch (error) {
+        console.error('Erro ao carregar dados de tendência:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [months, loadMonthlyTrendData]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-black/10 p-6">
+        <h3 className="text-lg font-semibold mb-4">📊 Tendência Mensal (Barras)</h3>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-foreground/60">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <BarChart data={monthlyData} title="📊 Tendência Mensal (Barras)" />;
+}
+
+function IncomeVsExpenseChart({ transactions }: { transactions: Transaction[] }) {
+  const totalIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const totalExpenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const total = totalIncome + totalExpenses;
+
+  const data = [
+    {
+      name: 'Receitas',
+      value: totalIncome,
+      color: '#10b981'
+    },
+    {
+      name: 'Despesas',
+      value: totalExpenses,
+      color: '#ef4444'
+    }
+  ].filter(item => item.value > 0);
+
+  return (
+    <PieChart 
+      data={data}
+      total={total}
+      title="💵 Receitas vs Despesas"
+    />
+  );
+}
+
+function CreditCardExpensesChart({ transactions }: { transactions: Transaction[] }) {
+  const creditCardExpenses = transactions
+    .filter(t => t.type === 'expense' && t.creditCardId)
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const cashExpenses = transactions
+    .filter(t => t.type === 'expense' && !t.creditCardId)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalExpenses = creditCardExpenses + cashExpenses;
+
+  const data = [
+    {
+      name: 'Cartão de Crédito',
+      value: creditCardExpenses,
+      color: '#3b82f6'
+    },
+    {
+      name: 'Dinheiro/Débito',
+      value: cashExpenses,
+      color: '#84cc16'
+    }
+  ].filter(item => item.value > 0);
+
+  return (
+    <PieChart 
+      data={data}
+      total={totalExpenses}
+      title="💳 Pagamento: Cartão vs Dinheiro"
+    />
+  );
+}
+
+function MonthlyComparisonChart({ 
+  transactions, 
+  currentMonth 
+}: { 
+  transactions: Transaction[];
+  currentMonth: string;
+}) {
+  const currentMonthExpenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const currentMonthIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const balance = currentMonthIncome - currentMonthExpenses;
+
+  const data = [
+    {
+      name: 'Saldo Positivo',
+      value: Math.max(0, balance),
+      color: '#10b981'
+    },
+    {
+      name: 'Saldo Negativo',
+      value: Math.max(0, -balance),
+      color: '#ef4444'
+    }
+  ].filter(item => item.value > 0);
+
+  return (
+    <PieChart 
+      data={data}
+      total={Math.abs(balance)}
+      title="⚖️ Saldo do Mês"
+    />
   );
 }

@@ -36,7 +36,7 @@ export default function DashboardLayout({
   if (isLoading) {
     return (
       <div className="min-h-screen grid grid-cols-[240px_1fr]">
-        <aside className="border-r border-black/10 dark:border-white/10 p-4">
+        <aside className="border-r border-black/10 p-4">
           <div className="h-8 bg-foreground/10 rounded animate-pulse mb-4"></div>
           <div className="h-4 bg-foreground/10 rounded animate-pulse mb-6"></div>
           <div className="space-y-2">
@@ -62,7 +62,7 @@ export default function DashboardLayout({
   return (
     <UserContext.Provider value={{ userId: user.id }}>
       <div className="min-h-screen grid grid-cols-[240px_1fr]">
-        <aside className="border-r border-black/10 dark:border-white/10 p-4 space-y-4">
+        <aside className="border-r border-black/10 p-4 space-y-4">
           <div>
             <div className="text-lg font-semibold">Finanças</div>
             <div className="text-xs text-foreground/60">Olá, {user.name}</div>

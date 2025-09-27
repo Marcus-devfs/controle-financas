@@ -136,7 +136,7 @@ function MonthSelector({
     <select
       value={selectedMonth}
       onChange={(e) => onMonthChange(e.target.value)}
-      className="px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-background text-foreground"
+      className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
     >
       {availableMonths.map(month => (
         <option key={month} value={month}>
@@ -159,17 +159,17 @@ function StatCard({
   subtitle: string;
 }) {
   const colors = {
-    balance: value >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
-    income: 'text-green-600 dark:text-green-400',
-    expense: 'text-red-600 dark:text-red-400',
-    investment: 'text-blue-600 dark:text-blue-400'
+    balance: value >= 0 ? 'text-green-600' : 'text-red-600',
+    income: 'text-green-600',
+    expense: 'text-red-600',
+    investment: 'text-blue-600'
   };
 
   const bgColors = {
-    balance: value >= 0 ? 'bg-green-50 dark:bg-green-950/20' : 'bg-red-50 dark:bg-red-950/20',
-    income: 'bg-green-50 dark:bg-green-950/20',
-    expense: 'bg-red-50 dark:bg-red-950/20',
-    investment: 'bg-blue-50 dark:bg-blue-950/20'
+    balance: value >= 0 ? 'bg-green-50' : 'bg-red-50',
+    income: 'bg-green-50',
+    expense: 'bg-red-50',
+    investment: 'bg-blue-50'
   };
 
   return (
@@ -201,7 +201,7 @@ function IncomeExpenseBreakdown({
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Receitas Fixas</span>
-            <span className="text-green-600 dark:text-green-400">{formatCurrency(fixedIncome)}</span>
+            <span className="text-green-600">{formatCurrency(fixedIncome)}</span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
             <div 
@@ -214,7 +214,7 @@ function IncomeExpenseBreakdown({
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Receitas Variáveis</span>
-            <span className="text-green-600 dark:text-green-400">{formatCurrency(variableIncome)}</span>
+            <span className="text-green-600">{formatCurrency(variableIncome)}</span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
             <div 
@@ -227,7 +227,7 @@ function IncomeExpenseBreakdown({
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Despesas Fixas</span>
-            <span className="text-red-600 dark:text-red-400">{formatCurrency(fixedExpenses)}</span>
+            <span className="text-red-600">{formatCurrency(fixedExpenses)}</span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
             <div 
@@ -240,7 +240,7 @@ function IncomeExpenseBreakdown({
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Despesas Variáveis</span>
-            <span className="text-red-600 dark:text-red-400">{formatCurrency(variableExpenses)}</span>
+            <span className="text-red-600">{formatCurrency(variableExpenses)}</span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
             <div 
@@ -280,8 +280,8 @@ function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
               </div>
               <div className={`text-sm font-medium ${
                 transaction.type.includes('Receita') || transaction.type.includes('Investimento')
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
+                  ? 'text-green-600'
+                  : 'text-red-600'
               }`}>
                 {formatCurrency(transaction.amount)}
               </div>
