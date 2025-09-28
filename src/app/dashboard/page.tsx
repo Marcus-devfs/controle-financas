@@ -6,8 +6,6 @@ import { formatCurrency, formatMonth } from "@/lib/data";
 import { useUserId } from "@/hooks/useUserId";
 import { CreditCardExpenses, CreditCardSummary } from "./CreditCardComponents";
 import { Transaction } from "@/lib/types";
-import { useAIAnalysis } from "@/hooks/useAIAnalysis";
-import { AIQuickSuggestions } from "@/components/AIQuickSuggestions";
 import { useEffect, useState } from "react";
 
 export default function DashboardHome() {
@@ -24,7 +22,6 @@ export default function DashboardHome() {
     getAvailableMonths 
   } = useFinanceData(userId);
 
-  const { getQuickSuggestions } = useAIAnalysis();
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -32,12 +29,8 @@ export default function DashboardHome() {
   useEffect(() => {
     if (transactions && categories && stats && currentMonth) {
       setAiLoading(true);
-      getQuickSuggestions(transactions, categories, stats, currentMonth)
-        .then(setAiSuggestions)
-        .catch(console.error)
-        .finally(() => setAiLoading(false));
     }
-  }, [transactions, categories, stats, currentMonth, getQuickSuggestions]);
+  }, [transactions, categories, stats, currentMonth]);
 
   if (loading || !stats || !transactions) {
     return (
@@ -137,41 +130,6 @@ export default function DashboardHome() {
           />
         </div>
       )}
-
-      {/* Sugestões da IA */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <AIQuickSuggestions 
-            suggestions={aiSuggestions}
-            loading={aiLoading}
-            onSuggestionClick={(suggestion) => {
-              console.log('Sugestão clicada:', suggestion);
-              // Aqui você pode implementar ações específicas para cada sugestão
-            }}
-          />
-        </div>
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">📊</span>
-              </div>
-              <h3 className="font-semibold text-gray-800">Análise Financeira</h3>
-            </div>
-            <div className="text-sm text-gray-600">
-              <p className="mb-2">
-                <strong>Receita vs Despesa:</strong> {formatCurrency(stats.totalIncome)} vs {formatCurrency(stats.totalExpenses)}
-              </p>
-              <p className="mb-2">
-                <strong>Margem:</strong> {formatCurrency(stats.balance)} ({((stats.balance / stats.totalIncome) * 100).toFixed(1)}%)
-              </p>
-              <p>
-                <strong>Status:</strong> {stats.balance > 0 ? '✅ Positivo' : '⚠️ Negativo'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
