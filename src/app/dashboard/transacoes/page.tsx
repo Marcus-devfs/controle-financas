@@ -11,7 +11,9 @@ export default function TransacoesPage() {
   const userId = useUserId();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [activeTab, setActiveTab] = useState<'income' | 'expenses'>('expenses');
+  const [activeTab, setActiveTab] = useState<'income' | 'expense'>('expense');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   
   const { 
     transactions,
@@ -38,13 +40,21 @@ export default function TransacoesPage() {
     allMonths.unshift(currentMonth);
   }
 
+  console.log('activeTab', activeTab);
+
         // Filtrar transações baseado na aba ativa e excluir gastos do cartão
         const filteredTransactions = transactions.filter(t => {
-          if (activeTab === 'income') {
-            return t.type === 'income';
-          } else {
-            return t.type === 'expense' && !t.creditCardId;
-          }
+          // Filtro por tipo (aba ativa)
+          const typeMatch = activeTab === 'income' ? t.type === 'income' : t.type === 'expense' && !t.creditCardId;
+          
+          // Filtro por categoria
+          const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+          const categoryMatch = !selectedCategory || categoryId === selectedCategory;
+          
+          // Filtro por descrição (busca)
+          const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          return typeMatch && categoryMatch && searchMatch;
         });
 
         const allTransactions = filteredTransactions.map((t: Transaction) => ({
@@ -95,9 +105,9 @@ export default function TransacoesPage() {
       {/* Abas */}
       <div className="flex border-b border-border">
         <button
-          onClick={() => setActiveTab('expenses')}
+          onClick={() => setActiveTab('expense')}
           className={`px-4 py-2 font-medium text-sm transition ${
-            activeTab === 'expenses'
+            activeTab === 'expense'
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           }`}
@@ -114,6 +124,48 @@ export default function TransacoesPage() {
         >
           💰 Receitas
         </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/30 rounded-lg">
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">🔍 Buscar por descrição</label>
+          <input
+            type="text"
+            placeholder="Digite para buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">📂 Filtrar por categoria</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          >
+            <option value="">Todas as categorias</option>
+            {categories
+              .filter(cat => cat.type === activeTab)
+              .map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setSelectedCategory('');
+            }}
+            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            Limpar Filtros
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -206,22 +258,21 @@ function TransactionList({
                 </td>
                 <td className="p-4 text-sm font-medium">{transaction.description}</td>
                 <td className="p-4 text-sm">
-                  <span 
-                    className="px-2 py-1 rounded-full text-xs"
-                    style={{ 
-                      backgroundColor: transaction.categoryId ? 
-                        categories.find((c: Category) => c.id === transaction.categoryId)?.color + '20' : 
-                        '#f3f4f6',
-                      color: transaction.categoryId ? 
-                        categories.find((c: Category) => c.id === transaction.categoryId)?.color : 
-                        '#6b7280'
-                    }}
-                  >
-                    {transaction.categoryId ? 
-                      categories.find((c: Category) => c.id === transaction.categoryId)?.name : 
-                      'Sem categoria'
-                    }
-                  </span>
+                  {(() => {
+                    const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
+                    const category = categories.find((c: Category) => c.id === categoryId);
+                    return (
+                      <span 
+                        className="px-2 py-1 rounded-full text-xs"
+                        style={{ 
+                          backgroundColor: category ? category.color + '20' : '#f3f4f6',
+                          color: category ? category.color : '#6b7280'
+                        }}
+                      >
+                        {category ? category.name : 'Sem categoria'}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="p-4 text-sm text-foreground/70">{transaction.displayType}</td>
                 <td className={`p-4 text-sm font-medium text-right ${

@@ -139,6 +139,12 @@ body {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
+/* Remover aparência padrão do iOS nos selects */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Animações suaves */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

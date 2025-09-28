@@ -114,7 +114,10 @@ class AIService {
       .filter(c => c.type === 'expense')
       .map(category => {
         const total = transactions
-          .filter(t => t.type === 'expense' && t.categoryId === category.id)
+          .filter(t => {
+            const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+            return t.type === 'expense' && categoryId === category.id;
+          })
           .reduce((sum, t) => sum + t.amount, 0);
         return { name: category.name, amount: total };
       })
@@ -380,7 +383,10 @@ JSON OBRIGATÓRIO (sem texto extra):
       .filter(c => c.type === 'expense')
       .map(category => {
         const total = transactions
-          .filter(t => t.type === 'expense' && t.categoryId === category.id)
+          .filter(t => {
+            const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+            return t.type === 'expense' && categoryId === category.id;
+          })
           .reduce((sum, t) => sum + t.amount, 0);
         return { name: category.name, amount: total, id: category.id };
       })
