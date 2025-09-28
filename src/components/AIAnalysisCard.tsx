@@ -68,11 +68,44 @@ export function AIAnalysisCard({ analysis, onSuggestionClick }: AIAnalysisCardPr
 
       {/* Summary */}
       <div className="mb-6">
-        <h4 className="font-semibold text-gray-800 mb-2">Resumo</h4>
+        <h4 className="font-semibold text-gray-800 mb-2">Diagnóstico Financeiro</h4>
         <p className="text-gray-600 bg-gray-50 rounded-lg p-3">
           {analysis.summary}
         </p>
       </div>
+
+      {/* Budget Analysis */}
+      {analysis.budgetAnalysis && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+          <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            📊 Análise de Orçamento
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-3 bg-white rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{analysis.budgetAnalysis.currentNeeds}%</div>
+              <div className="text-sm text-gray-600">Necessidades</div>
+              <div className="text-xs text-gray-500">Ideal: {analysis.budgetAnalysis.idealNeeds}%</div>
+              <div className={`text-xs mt-1 ${parseFloat(analysis.budgetAnalysis.currentNeeds) > analysis.budgetAnalysis.idealNeeds ? 'text-red-600' : 'text-green-600'}`}>
+                {parseFloat(analysis.budgetAnalysis.currentNeeds) > analysis.budgetAnalysis.idealNeeds ? '⚠️ Acima do ideal' : '✅ Dentro do ideal'}
+              </div>
+            </div>
+            <div className="text-center p-3 bg-white rounded-lg">
+              <div className="text-2xl font-bold text-orange-600">{analysis.budgetAnalysis.currentWants}%</div>
+              <div className="text-sm text-gray-600">Desejos</div>
+              <div className="text-xs text-gray-500">Ideal: {analysis.budgetAnalysis.idealWants}%</div>
+              <div className={`text-xs mt-1 ${parseFloat(analysis.budgetAnalysis.currentWants) > analysis.budgetAnalysis.idealWants ? 'text-red-600' : 'text-green-600'}`}>
+                {parseFloat(analysis.budgetAnalysis.currentWants) > analysis.budgetAnalysis.idealWants ? '⚠️ Acima do ideal' : '✅ Dentro do ideal'}
+              </div>
+            </div>
+            <div className="text-center p-3 bg-white rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{analysis.budgetAnalysis.idealSavings}%</div>
+              <div className="text-sm text-gray-600">Poupança</div>
+              <div className="text-xs text-gray-500">Meta: {analysis.budgetAnalysis.idealSavings}%</div>
+              <div className="text-xs mt-1 text-blue-600">🎯 Meta a alcançar</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Insights */}
       {analysis.insights.length > 0 && (
@@ -157,6 +190,25 @@ export function AIAnalysisCard({ analysis, onSuggestionClick }: AIAnalysisCardPr
                     </div>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {analysis.recommendations && analysis.recommendations.length > 0 && (
+        <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+          <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            🎯 Recomendações Estratégicas
+          </h4>
+          <div className="space-y-2">
+            {analysis.recommendations.map((recommendation, index) => (
+              <div key={index} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
+                <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                  {index + 1}
+                </div>
+                <p className="text-gray-700 text-sm">{recommendation}</p>
               </div>
             ))}
           </div>

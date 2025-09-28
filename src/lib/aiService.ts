@@ -4,8 +4,10 @@ export interface AIAnalysis {
   summary: string;
   insights: string[];
   suggestions: AISuggestion[];
+  budgetAnalysis?: BudgetAnalysis;
   riskLevel: 'low' | 'medium' | 'high';
   score: number; // 0-100
+  recommendations?: string[];
 }
 
 export interface AISuggestion {
@@ -16,6 +18,15 @@ export interface AISuggestion {
   category?: string;
   estimatedSavings?: number;
   priority: number; // 1-5
+  timeline?: string;
+}
+
+export interface BudgetAnalysis {
+  currentNeeds: string; // percentage as string
+  currentWants: string; // percentage as string
+  idealNeeds: number;
+  idealWants: number;
+  idealSavings: number;
 }
 
 export interface FinancialData {
@@ -82,28 +93,64 @@ class AIService {
       .filter(c => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
 
-    const prompt = `Analise financeira:
-Receita: R$ ${monthlyIncome.toFixed(2)} | Despesas: R$ ${monthlyExpenses.toFixed(2)} | Saldo: R$ ${(monthlyIncome - monthlyExpenses).toFixed(2)}
-Margem: ${((monthlyIncome - monthlyExpenses) / monthlyIncome * 100).toFixed(1)}%
+    const prompt = `Você é um consultor financeiro especialista em orçamento pessoal. Analise os dados financeiros e forneça uma análise robusta baseada em princípios de educação financeira.
 
-Top gastos: ${categoryExpenses.slice(0, 3).map(c => `${c.name} R$ ${c.amount.toFixed(0)}`).join(', ')}
+DADOS FINANCEIROS:
+- Receita mensal: R$ ${monthlyIncome.toFixed(2)}
+- Despesas mensais: R$ ${monthlyExpenses.toFixed(2)}
+- Saldo atual: R$ ${(monthlyIncome - monthlyExpenses).toFixed(2)}
+- Margem de segurança: ${((monthlyIncome - monthlyExpenses) / monthlyIncome * 100).toFixed(1)}%
+
+CATEGORIAS DE GASTOS (Top 10):
+${categoryExpenses.slice(0, 10).map(c => `- ${c.name}: R$ ${c.amount.toFixed(2)} (${(c.amount / monthlyIncome * 100).toFixed(1)}%)`).join('\n')}
+
+ANÁLISE SOLICITADA:
+1. **Diagnóstico da situação atual** - Compare com padrões saudáveis de orçamento
+2. **Identificação de problemas** - Onde estão os maiores riscos financeiros
+3. **Estratégias específicas** - Planos de ação concretos para cada categoria
+4. **Meta de margem ideal** - Qual deveria ser a margem de segurança ideal
+5. **Cronograma de implementação** - Como implementar as mudanças
+
+PADRÕES DE ORÇAMENTO SAUDÁVEL:
+- Necessidades (50-60%): Moradia, alimentação, transporte, saúde
+- Desejos (20-30%): Lazer, roupas, entretenimento
+- Poupança/Investimentos (20%): Reserva de emergência, investimentos
+- Margem de segurança: Mínimo 10%, ideal 15-20%
 
 Responda em JSON:
 {
-  "summary": "Resumo em 1-2 frases",
-  "insights": ["insight 1", "insight 2"],
+  "summary": "Diagnóstico da situação financeira atual em 2-3 frases",
+  "insights": [
+    "Insight específico sobre a situação atual",
+    "Comparação com padrões saudáveis",
+    "Identificação do principal problema"
+  ],
   "suggestions": [
     {
       "type": "expense_reduction",
-      "title": "Sugestão",
-      "description": "Descrição",
-      "impact": "high",
+      "title": "Título específico da sugestão",
+      "description": "Descrição detalhada com valores e estratégia",
+      "impact": "high|medium|low",
+      "category": "Nome da categoria",
       "estimatedSavings": 500,
-      "priority": 1
+      "priority": 1,
+      "timeline": "Implementar em X meses"
     }
   ],
-  "riskLevel": "medium",
-  "score": 75
+  "budgetAnalysis": {
+    "currentNeeds": ${(categoryExpenses.filter(c => ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Contas'].some(need => c.name.includes(need))).reduce((sum, c) => sum + c.amount, 0) / monthlyIncome * 100).toFixed(1)},
+    "currentWants": ${(categoryExpenses.filter(c => ['Lazer', 'Roupas', 'Entretenimento'].some(want => c.name.includes(want))).reduce((sum, c) => sum + c.amount, 0) / monthlyIncome * 100).toFixed(1)},
+    "idealNeeds": 55,
+    "idealWants": 25,
+    "idealSavings": 20
+  },
+  "riskLevel": "high|medium|low",
+  "score": 75,
+  "recommendations": [
+    "Recomendação específica 1",
+    "Recomendação específica 2",
+    "Recomendação específica 3"
+  ]
 }`;
 
     return prompt;
