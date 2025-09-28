@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import ResponsiveHeader from "@/components/ResponsiveHeader";
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -19,162 +20,118 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-green-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">F</span>
-              </div>
-              <span className="font-bold text-2xl text-gray-800">Finanças Pro</span>
-            </div>
-            
-            <nav className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-gray-600 hover:text-gray-800 transition-colors">Recursos</a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-800 transition-colors">Preços</a>
-              <a href="#testimonials" className="text-gray-600 hover:text-gray-800 transition-colors">Depoimentos</a>
-            </nav>
-
-            <div className="flex items-center gap-4">
-              {isAuthenticated ? (
-                <Link 
-                  href="/dashboard"
-                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg hover:from-blue-700 hover:to-green-700 transition-all font-semibold"
-                >
-                  Dashboard
-                </Link>
-              ) : (
-                <>
-                  <Link 
-                    href="/login"
-                    className="text-gray-600 hover:text-gray-800 transition-colors font-medium"
-                  >
-                    Entrar
-                  </Link>
-                  <Link 
-                    href="/register"
-                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg hover:from-blue-700 hover:to-green-700 transition-all font-semibold"
-                  >
-                    Começar Grátis
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <ResponsiveHeader />
 
       {/* Hero Section */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-800 mb-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-800 mb-4 sm:mb-6">
             Transforme sua{' '}
             <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
               vida financeira
             </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto px-4">
             O painel financeiro mais completo e intuitivo do Brasil. 
             Organize receitas, despesas, cartões e investimentos em um só lugar.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 px-4">
             <Link 
               href={isAuthenticated ? "/dashboard" : "/register"}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg hover:from-blue-700 hover:to-green-700 transition-all font-semibold text-lg shadow-lg hover:shadow-xl"
+              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg hover:from-blue-700 hover:to-green-700 transition-all font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl"
             >
               {isAuthenticated ? "Ir para Dashboard" : "Começar Grátis"}
             </Link>
             <Link 
               href="/onboarding"
-              className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-all font-semibold text-lg"
+              className="px-6 sm:px-8 py-3 sm:py-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-all font-semibold text-base sm:text-lg"
             >
               Ver Demonstração
             </Link>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
+          <div className="grid grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-3xl mx-auto px-4">
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">10K+</div>
-              <div className="text-gray-600">Usuários ativos</div>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-600 mb-1 sm:mb-2">10K+</div>
+              <div className="text-xs sm:text-sm md:text-base text-gray-600">Usuários ativos</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">R$ 2M+</div>
-              <div className="text-gray-600">Dinheiro gerenciado</div>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600 mb-1 sm:mb-2">R$ 2M+</div>
+              <div className="text-xs sm:text-sm md:text-base text-gray-600">Dinheiro gerenciado</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">4.9★</div>
-              <div className="text-gray-600">Avaliação média</div>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-purple-600 mb-1 sm:mb-2">4.9★</div>
+              <div className="text-xs sm:text-sm md:text-base text-gray-600">Avaliação média</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 px-6 bg-white/50">
+      <section id="features" className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-white/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-800 mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-3 sm:mb-4">
               Tudo que você precisa para suas finanças
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-4">
               Recursos poderosos para organizar, analisar e otimizar sua vida financeira
             </p>
           </div>
 
           {/* Consultor IA - Destaque Especial */}
-          <div className="col-span-full mb-8">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-3xl p-8 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+          <div className="col-span-full mb-6 sm:mb-8">
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-20 h-20 sm:w-32 sm:h-32 bg-white/10 rounded-full -translate-y-10 sm:-translate-y-16 translate-x-10 sm:translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-24 sm:h-24 bg-white/10 rounded-full translate-y-8 sm:translate-y-12 -translate-x-8 sm:-translate-x-12"></div>
               
               <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                    <span className="text-3xl">🤖</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 rounded-xl sm:rounded-2xl flex items-center justify-center">
+                    <span className="text-2xl sm:text-3xl">🤖</span>
                   </div>
                   <div>
-                    <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-sm font-medium mb-2">
-                      <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                    <div className="inline-flex items-center gap-2 bg-white/20 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium mb-2">
+                      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 rounded-full animate-pulse"></span>
                       DIFERENCIAL EXCLUSIVO
                     </div>
-                    <h3 className="text-2xl font-bold">Consultor IA Financeiro</h3>
+                    <h3 className="text-lg sm:text-xl lg:text-2xl font-bold">Consultor IA Financeiro</h3>
                   </div>
                 </div>
                 
-                <p className="text-lg text-white/90 mb-6 max-w-2xl">
+                <p className="text-sm sm:text-base lg:text-lg text-white/90 mb-4 sm:mb-6 max-w-2xl">
                   <strong>Análise financeira inteligente que você não encontra em outros apps.</strong> 
                   Nossa IA identifica problemas ocultos, sugere soluções personalizadas e oferece insights 
                   que transformam sua relação com o dinheiro.
                 </p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-white/10 rounded-xl p-4">
-                    <div className="text-2xl font-bold mb-1">85%</div>
-                    <div className="text-sm text-white/80">Redução média de gastos desnecessários</div>
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-4">
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-1">85%</div>
+                    <div className="text-xs sm:text-sm text-white/80">Redução de gastos</div>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-4">
-                    <div className="text-2xl font-bold mb-1">R$ 1.2K</div>
-                    <div className="text-sm text-white/80">Economia média mensal identificada</div>
+                  <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-4">
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-1">R$ 1.2K</div>
+                    <div className="text-xs sm:text-sm text-white/80">Economia mensal</div>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-4">
-                    <div className="text-2xl font-bold mb-1">92%</div>
-                    <div className="text-sm text-white/80">Usuários melhoraram sua saúde financeira</div>
+                  <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-4">
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-1">92%</div>
+                    <div className="text-xs sm:text-sm text-white/80">Melhoria financeira</div>
                   </div>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <Link 
                     href={isAuthenticated ? "/dashboard" : "/register"}
-                    className="px-6 py-3 bg-white text-purple-600 rounded-lg font-semibold hover:bg-white/90 transition-all shadow-lg"
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-white text-purple-600 rounded-lg font-semibold hover:bg-white/90 transition-all shadow-lg text-center text-sm sm:text-base"
                   >
                     {isAuthenticated ? "Experimentar Consultor IA" : "Começar Grátis"}
                   </Link>
                   <Link 
                     href="/onboarding"
-                    className="px-6 py-3 border-2 border-white/30 text-white rounded-lg font-semibold hover:bg-white/10 transition-all"
+                    className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-white/30 text-white rounded-lg font-semibold hover:bg-white/10 transition-all text-center text-sm sm:text-base"
                   >
                     Ver Demonstração
                   </Link>
@@ -183,63 +140,63 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">📊</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">📊</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Dashboard Inteligente</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Dashboard Inteligente</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Visualize todas as suas finanças em um painel completo com métricas e insights em tempo real.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">💳</span>
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">💳</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Controle de Cartões</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Controle de Cartões</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Gerencie gastos, faturas e limites de cartão de crédito com alertas inteligentes.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">📈</span>
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">📈</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Relatórios Avançados</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Relatórios Avançados</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Análise detalhada com gráficos interativos e relatórios exportáveis.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">💰</span>
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">💰</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Gestão de Investimentos</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Gestão de Investimentos</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Acompanhe seus investimentos e calcule rendimentos com precisão.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">🔒</span>
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">🔒</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Segurança Total</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Segurança Total</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Seus dados protegidos com criptografia de ponta a ponta e backup automático.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-              <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center mb-6">
-                <span className="text-2xl">📱</span>
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-gray-100">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-teal-100 rounded-lg sm:rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">📱</span>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Multi-dispositivo</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Multi-dispositivo</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 Acesse suas finanças de qualquer lugar, em qualquer dispositivo.
               </p>
             </div>
@@ -267,8 +224,8 @@ export default function Home() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6 italic">
-                "O Consultor IA identificou que eu estava gastando R$ 800/mês com delivery sem perceber. 
-                Agora economizo esse valor e invisto em coisas que realmente importam."
+                &ldquo;O Consultor IA identificou que eu estava gastando R$ 800/mês com delivery sem perceber. 
+                Agora economizo esse valor e invisto em coisas que realmente importam.&rdquo;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
@@ -288,8 +245,8 @@ export default function Home() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6 italic">
-                "A análise da IA me mostrou padrões que eu nunca tinha notado. 
-                Descobri que 40% dos meus gastos eram em categorias que eu nem sabia que existiam!"
+                &ldquo;A análise da IA me mostrou padrões que eu nunca tinha notado. 
+                Descobri que 40% dos meus gastos eram em categorias que eu nem sabia que existiam!&rdquo;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
@@ -309,8 +266,8 @@ export default function Home() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6 italic">
-                "O melhor investimento que fiz! A IA me ajudou a criar um plano de pagamento de dívidas 
-                que eu nunca teria conseguido sozinha. Em 6 meses já paguei 60% das minhas dívidas."
+                &ldquo;O melhor investimento que fiz! A IA me ajudou a criar um plano de pagamento de dívidas 
+                que eu nunca teria conseguido sozinha. Em 6 meses já paguei 60% das minhas dívidas.&rdquo;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">

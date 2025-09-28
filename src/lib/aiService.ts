@@ -53,7 +53,7 @@ class AIService {
         const existingAnalysis = await apiClient.getAIAnalysis(data.currentMonth);
         console.log('📋 Análise existente encontrada para o mês:', data.currentMonth);
         return existingAnalysis.analysis as AIAnalysis;
-      } catch (error) {
+      } catch {
         console.log('📝 Nenhuma análise existente encontrada, gerando nova...');
       }
 
@@ -96,7 +96,7 @@ class AIService {
   }
 
   private buildAnalysisPrompt(data: FinancialData): string {
-    const { transactions, categories, stats, currentMonth } = data;
+    const { transactions, categories } = data;
 
     // Preparar dados para análise
     const monthlyIncome = transactions
@@ -345,7 +345,7 @@ JSON OBRIGATÓRIO (sem texto extra):
   }
 
   private getLocalAnalysis(data: FinancialData): AIAnalysis {
-    const { transactions, categories, stats } = data;
+    const { transactions, categories } = data;
 
     const monthlyIncome = transactions
       .filter(t => t.type === 'income')
@@ -479,7 +479,7 @@ JSON OBRIGATÓRIO (sem texto extra):
     try {
       await apiClient.getAIAnalysis(month);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { aiService, AIAnalysis, AISuggestion, FinancialData } from '@/lib/aiService';
 import { Transaction, Category, DashboardStats } from '@/lib/types';
 

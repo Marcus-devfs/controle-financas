@@ -12,8 +12,7 @@ import {
   ApiTransactionResponse,
   ApiTransactionRequest,
   Category as ApiCategory,
-  CreditCard as ApiCreditCard,
-  DashboardStats as ApiDashboardStats
+  CreditCard as ApiCreditCard
 } from '@/lib/api';
 import { getCurrentMonth } from '@/lib/data';
 

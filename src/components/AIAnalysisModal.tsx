@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+// Removed unused useState import
 import { AIAnalysis, AISuggestion } from '@/lib/aiService';
 import { formatCurrency } from '@/lib/data';
 
@@ -23,14 +23,7 @@ export function AIAnalysisModal({ analysis, isOpen, onClose, loading = false }: 
     }
   };
 
-  const getImpactColor = (impact: string) => {
-    switch (impact) {
-      case 'high': return 'text-red-600 bg-red-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
+  // Removed unused getImpactColor function
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600';
@@ -207,7 +200,7 @@ export function AIAnalysisModal({ analysis, isOpen, onClose, loading = false }: 
   );
 }
 
-function SuggestionCard({ suggestion, index }: { suggestion: AISuggestion; index: number }) {
+function SuggestionCard({ suggestion }: { suggestion: AISuggestion; index: number }) {
   const getImpactColor = (impact: string) => {
     switch (impact) {
       case 'high': return 'text-red-600 bg-red-50 border-red-200';

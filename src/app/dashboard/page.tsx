@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useFinanceData } from "@/hooks/useFinanceData";
@@ -6,7 +5,7 @@ import { formatCurrency, formatMonth } from "@/lib/data";
 import { useUserId } from "@/hooks/useUserId";
 import { CreditCardExpenses, CreditCardSummary } from "./CreditCardComponents";
 import { Transaction } from "@/lib/types";
-import { useEffect, useState } from "react";
+// Removed unused imports
 
 export default function DashboardHome() {
   const userId = useUserId();
@@ -22,15 +21,7 @@ export default function DashboardHome() {
     getAvailableMonths 
   } = useFinanceData(userId);
 
-  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
-  const [aiLoading, setAiLoading] = useState(false);
-
-  // Carregar sugestões da IA quando os dados mudarem
-  useEffect(() => {
-    if (transactions && categories && stats && currentMonth) {
-      setAiLoading(true);
-    }
-  }, [transactions, categories, stats, currentMonth]);
+  // Removed unused AI suggestions state
 
   if (loading || !stats || !transactions) {
     return (
@@ -62,7 +53,7 @@ export default function DashboardHome() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <StatCard 
           title="Saldo do Mês" 
           value={stats.balance} 
@@ -91,7 +82,7 @@ export default function DashboardHome() {
 
       {/* Cartões de crédito */}
       {stats.creditCardDebt > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
           <StatCard 
             title="Dívida Cartão" 
             value={stats.creditCardDebt} 
@@ -107,7 +98,7 @@ export default function DashboardHome() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <IncomeExpenseBreakdown 
           fixedIncome={stats.fixedIncome}
           variableIncome={stats.variableIncome}
@@ -119,7 +110,7 @@ export default function DashboardHome() {
 
       {/* Gastos do Cartão */}
       {creditCards && creditCards.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <CreditCardExpenses 
             currentMonthData={{ transactions, categories, creditCards }}
             creditCards={creditCards}
@@ -184,12 +175,12 @@ function StatCard({
   };
 
   return (
-    <div className={`card p-6 ${bgColors[type]} animate-fade-in`}>
-      <div className="text-sm text-muted-foreground mb-1">{title}</div>
-      <div className={`text-2xl font-bold ${colors[type]}`}>
+    <div className={`card p-3 md:p-6 ${bgColors[type]} animate-fade-in`}>
+      <div className="text-xs md:text-sm text-muted-foreground mb-1">{title}</div>
+      <div className={`text-lg md:text-2xl font-bold ${colors[type]}`}>
         {formatCurrency(value)}
       </div>
-      <div className="text-xs text-muted-foreground mt-1">{subtitle}</div>
+      <div className="text-xs text-muted-foreground mt-1 truncate">{subtitle}</div>
     </div>
   );
 }
