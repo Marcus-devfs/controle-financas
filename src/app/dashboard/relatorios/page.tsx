@@ -9,6 +9,7 @@ import { PieChart } from "@/components/PieChart";
 import { BarChart } from "@/components/BarChart";
 import { useAIAnalysis } from "@/hooks/useAIAnalysis";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
+import { AIAnalysisModal } from "@/components/AIAnalysisModal";
 
 export default function RelatoriosPage() {
   const userId = useUserId();
@@ -24,12 +25,13 @@ export default function RelatoriosPage() {
     loadMonthlyTrendData
   } = useReportsData(userId);
 
-  const { analyzeFinancialData, analysis, loading: aiLoading } = useAIAnalysis();
+  const { analyzeFinancialData, analysis, loading: aiLoading, error: aiError } = useAIAnalysis();
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
 
   const handleAIAnalysis = async () => {
     if (transactions && categories) {
-      setShowAIAnalysis(true);
+      setShowAIModal(true);
       try {
         // Criar stats básicos para a análise
         const monthlyIncome = transactions
@@ -58,6 +60,10 @@ export default function RelatoriosPage() {
         console.error('Erro na análise de IA:', error);
       }
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowAIModal(false);
   };
 
   if (loading || !transactions || !categories) {
@@ -227,18 +233,13 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
-      {/* Análise de IA */}
-      {showAIAnalysis && analysis && (
-        <div className="mt-8">
-          <AIAnalysisCard 
-            analysis={analysis}
-            onSuggestionClick={(suggestion) => {
-              console.log('Sugestão clicada:', suggestion);
-              // Aqui você pode implementar ações específicas para cada sugestão
-            }}
-          />
-        </div>
-      )}
+      {/* Modal de Análise de IA */}
+      <AIAnalysisModal
+        analysis={analysis}
+        isOpen={showAIModal}
+        onClose={handleCloseModal}
+        loading={aiLoading}
+      />
     </div>
   );
 }
