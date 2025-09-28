@@ -38,19 +38,22 @@ class AIService {
     try {
       // Se não tiver API key, usar análise local
       if (!this.apiKey) {
+        console.log('🔧 Usando análise local (sem API key)');
         return this.getLocalAnalysis(data);
       }
 
-      console.log('this.apiKey', this.apiKey);
+      console.log('🔑 API Key configurada, usando Gemini API via proxy');
       
       const prompt = this.buildAnalysisPrompt(data);
-      console.log('prompt', prompt);
+      console.log('📝 Prompt gerado:', prompt.substring(0, 200) + '...');
+      
       const response = await this.callGeminiAPI(prompt);
-      console.log('data', data);
+      console.log('🤖 Resposta da IA recebida:', response.substring(0, 200) + '...');
       
       return this.parseAIResponse(response, data);
     } catch (error) {
-      console.error('Erro na análise de IA:', error);
+      console.error('❌ Erro na análise de IA:', error);
+      console.log('🔄 Usando análise local como fallback');
       // Fallback para análise local
       return this.getLocalAnalysis(data);
     }
@@ -79,78 +82,50 @@ class AIService {
       .filter(c => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
 
-    const prompt = `
-Analise os dados financeiros do usuário e forneça insights e sugestões práticas.
+    const prompt = `Analise financeira:
+Receita: R$ ${monthlyIncome.toFixed(2)} | Despesas: R$ ${monthlyExpenses.toFixed(2)} | Saldo: R$ ${(monthlyIncome - monthlyExpenses).toFixed(2)}
+Margem: ${((monthlyIncome - monthlyExpenses) / monthlyIncome * 100).toFixed(1)}%
 
-DADOS FINANCEIROS:
-- Mês atual: ${currentMonth}
-- Receita mensal: R$ ${monthlyIncome.toFixed(2)}
-- Despesas mensais: R$ ${monthlyExpenses.toFixed(2)}
-- Saldo: R$ ${(monthlyIncome - monthlyExpenses).toFixed(2)}
-- Margem de segurança: ${((monthlyIncome - monthlyExpenses) / monthlyIncome * 100).toFixed(1)}%
+Top gastos: ${categoryExpenses.slice(0, 3).map(c => `${c.name} R$ ${c.amount.toFixed(0)}`).join(', ')}
 
-TOP 5 CATEGORIAS DE GASTOS:
-${categoryExpenses.slice(0, 5).map(c => `- ${c.name}: R$ ${c.amount.toFixed(2)}`).join('\n')}
-
-ANÁLISE SOLICITADA:
-1. Resumo da situação financeira atual
-2. 3-5 insights principais sobre os gastos
-3. 3-5 sugestões práticas para economia
-4. Nível de risco financeiro (baixo/médio/alto)
-5. Score de saúde financeira (0-100)
-
-RESPONDA EM FORMATO JSON:
+Responda em JSON:
 {
-  "summary": "Resumo em 2-3 frases",
-  "insights": ["insight 1", "insight 2", "insight 3"],
+  "summary": "Resumo em 1-2 frases",
+  "insights": ["insight 1", "insight 2"],
   "suggestions": [
     {
       "type": "expense_reduction",
-      "title": "Título da sugestão",
-      "description": "Descrição detalhada",
+      "title": "Sugestão",
+      "description": "Descrição",
       "impact": "high",
-      "category": "Nome da categoria",
       "estimatedSavings": 500,
       "priority": 1
     }
   ],
   "riskLevel": "medium",
   "score": 75
-}
-
-Seja específico, prático e focado em ações que o usuário pode tomar imediatamente.
-`;
+}`;
 
     return prompt;
   }
 
   private async callGeminiAPI(prompt: string): Promise<string> {
-    const response = await fetch(`${this.baseUrl}?key=${this.apiKey}`, {
+    // Usar a API route do Next.js para evitar problemas de CORS
+    const response = await fetch('/api/ai/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
-      })
+      body: JSON.stringify({ prompt })
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(`API Error: ${response.status} - ${errorData.error}`);
     }
 
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    return data.text;
   }
 
   private parseAIResponse(response: string, data: FinancialData): AIAnalysis {
