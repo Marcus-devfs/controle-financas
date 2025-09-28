@@ -12,7 +12,7 @@ export interface AIAnalysis {
 }
 
 export interface AISuggestion {
-  type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment' | 'financial_planning' | 'budget_management';
+  type: string;
   title: string;
   description: string;
   impact: 'low' | 'medium' | 'high';
@@ -124,33 +124,34 @@ class AIService {
       .filter(c => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
 
-    // Calcular necessidades vs desejos
-    const needsCategories = ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Contas', 'Aluguel', 'Supermercado', 'Combustível', 'Farmácia'];
-    const wantsCategories = ['Lazer', 'Roupas', 'Entretenimento', 'Viagem', 'Shopping', 'Restaurante'];
-
-    const currentNeeds = categoryExpenses
-      .filter(c => needsCategories.some(need => c.name.toLowerCase().includes(need.toLowerCase())))
-      .reduce((sum, c) => sum + c.amount, 0);
-
-    const currentWants = categoryExpenses
-      .filter(c => wantsCategories.some(want => c.name.toLowerCase().includes(want.toLowerCase())))
-      .reduce((sum, c) => sum + c.amount, 0);
-
-    const needsPercentage = monthlyIncome > 0 ? (currentNeeds / monthlyIncome) * 100 : 0;
-    const wantsPercentage = monthlyIncome > 0 ? (currentWants / monthlyIncome) * 100 : 0;
+    // Buscar todas as categorias de receitas também
+    const categoryIncome = categories
+      .filter(cat => cat.type === 'income')
+      .map(category => {
+        const total = transactions
+          .filter(t => {
+            const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+            return t.type === 'income' && categoryId === category.id;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+        return { name: category.name, amount: total };
+      })
+      .filter(c => c.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
 
     const prompt = `Analise estes dados financeiros e retorne APENAS um JSON válido:
 
 DADOS:
-- Receita: R$ ${monthlyIncome.toFixed(2)}
-- Despesas: R$ ${monthlyExpenses.toFixed(2)}
+- Receita Total: R$ ${monthlyIncome.toFixed(2)}
+- Despesas Total: R$ ${monthlyExpenses.toFixed(2)}
 - Saldo: R$ ${balance.toFixed(2)}
 - Margem: ${margin.toFixed(1)}%
-- Necessidades: ${needsPercentage.toFixed(1)}%
-- Desejos: ${wantsPercentage.toFixed(1)}%
 
-TOP GASTOS:
-${categoryExpenses.slice(0, 10).map(c => `${c.name}: R$ ${c.amount.toFixed(2)}`).join(', ')}
+CATEGORIAS DE RECEITAS:
+${categoryIncome.length > 0 ? categoryIncome.map(c => `${c.name}: R$ ${c.amount.toFixed(2)}`).join(', ') : 'Nenhuma receita categorizada'}
+
+CATEGORIAS DE DESPESAS:
+${categoryExpenses.length > 0 ? categoryExpenses.map(c => `${c.name}: R$ ${c.amount.toFixed(2)}`).join(', ') : 'Nenhuma despesa categorizada'}
 
 ANÁLISE SOLICITADA:
 1. **Diagnóstico da situação atual** - Compare com padrões saudáveis de orçamento
@@ -159,20 +160,21 @@ ANÁLISE SOLICITADA:
 4. **Meta de margem ideal** - Qual deveria ser a margem de segurança ideal
 5. **Cronograma de implementação** - Como implementar as mudanças
 
-PADRÕES DE ORÇAMENTO SAUDÁVEL:
-- Necessidades (50-60%): Moradia, alimentação, transporte, saúde
-- Desejos (20-30%): Lazer, roupas, entretenimento
-- Poupança/Investimentos (20%): Reserva de emergência, investimentos
-- Margem de segurança: Mínimo 10%, ideal 15-20%
+INSTRUÇÕES PARA ANÁLISE:
+- Analise as categorias de despesas e identifique quais são ESSENCIAIS (necessidades básicas) vs DESEJOS (luxos/opcionais)
+- Compare os gastos por categoria com padrões saudáveis de orçamento
+- Identifique categorias com gastos excessivos ou desproporcionais
+- Sugira estratégias específicas para cada categoria problemática
+- Considere a margem de segurança ideal (mínimo 10%, ideal 15-20%)
 JSON OBRIGATÓRIO (sem texto extra):
 {
   "summary": "Resumo em 2 frases da situação financeira",
   "insights": [
     "Problema principal identificado",
     "Comparação com padrões saudáveis",
-    "Risco mais crítico"
-     "Identificação do principal problema"
-    "Sugestões de melhoria""
+    "Risco mais crítico",
+    "Identificação do principal problema",
+    "Sugestões de melhoria"
   ],
   "suggestions": [
     {
@@ -186,20 +188,12 @@ JSON OBRIGATÓRIO (sem texto extra):
       "timeline": "1-2 meses"
     }
   ],
-  "budgetAnalysis": {
-    "currentNeeds": "${needsPercentage.toFixed(1)}",
-    "currentWants": "${wantsPercentage.toFixed(1)}",
-    "idealNeeds": 55,
-    "idealWants": 25,
-    "idealSavings": 20
-  },
   "riskLevel": "high",
   "score": 30,
   "recommendations": [
     "Ação imediata 1",
     "Ação imediata 2",
-    "Ação imediata 3",
-    "Ação imediata 4",
+    "Ação imediata 3"
   ]
 }`;
 
@@ -312,9 +306,15 @@ JSON OBRIGATÓRIO (sem texto extra):
       // Se terminar com vírgula, remover
       repaired = repaired.replace(/,\s*$/, '');
 
-      // Se terminar com string incompleta, fechar
+      // Se terminar com string incompleta, fechar adequadamente
       if (repaired.match(/"[^"]*$/)) {
-        repaired = repaired.replace(/"[^"]*$/, '""');
+        // Se a string está incompleta, completar com texto genérico
+        repaired = repaired.replace(/"[^"]*$/, '"Análise incompleta"');
+      }
+      
+      // Se terminar com string que não foi fechada, fechar
+      if (repaired.match(/"[^"]*$/)) {
+        repaired += '"';
       }
 
       // Fechar arrays abertos
@@ -329,6 +329,11 @@ JSON OBRIGATÓRIO (sem texto extra):
       const closeBraces = (repaired.match(/\}/g) || []).length;
       for (let i = 0; i < openBraces - closeBraces; i++) {
         repaired += '}';
+      }
+
+      // Verificar se ainda há strings não terminadas no final
+      if (repaired.match(/"[^"]*$/)) {
+        repaired = repaired.replace(/"[^"]*$/, '"Análise cortada"');
       }
 
       console.log('🔧 JSON reparado:', repaired.substring(0, 200) + '...');
