@@ -27,12 +27,19 @@ export function CardExpensesTab({
 
   const getCardName = (cardId: string | undefined) => {
     if (!cardId) return 'Sem cartão';
-    const card = creditCards.find(c => c.id === cardId);
+    
+    // Extrair ID se for objeto (como nos relatórios)
+    const actualCardId = typeof cardId === 'object' ? (cardId as any)._id : cardId;
+    
+    const card = creditCards.find(c => c.id === actualCardId);
     return card ? `${card.name} - ****${card.lastFourDigits}` : 'Cartão não encontrado';
   };
 
   const getCategoryName = (categoryId: string) => {
-    const category = currentMonthData.categories.find((c: Category) => c.id === categoryId);
+    // Extrair ID se for objeto (como nos relatórios)
+    const actualCategoryId = typeof categoryId === 'object' ? (categoryId as any)._id : categoryId;
+    
+    const category = currentMonthData.categories.find((c: Category) => c.id === actualCategoryId);
     return category?.name || 'Sem categoria';
   };
 
