@@ -7,6 +7,8 @@ import { useUserId } from "@/hooks/useUserId";
 import { useState, useEffect } from "react";
 import { PieChart } from "@/components/PieChart";
 import { BarChart } from "@/components/BarChart";
+import { useAIAnalysis } from "@/hooks/useAIAnalysis";
+import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 
 export default function RelatoriosPage() {
   const userId = useUserId();
@@ -21,6 +23,42 @@ export default function RelatoriosPage() {
     getMonthData,
     loadMonthlyTrendData
   } = useReportsData(userId);
+
+  const { analyzeFinancialData, analysis, loading: aiLoading } = useAIAnalysis();
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+
+  const handleAIAnalysis = async () => {
+    if (transactions && categories) {
+      setShowAIAnalysis(true);
+      try {
+        // Criar stats básicos para a análise
+        const monthlyIncome = transactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0);
+        
+        const monthlyExpenses = transactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const stats = {
+          totalIncome: monthlyIncome,
+          totalExpenses: monthlyExpenses,
+          balance: monthlyIncome - monthlyExpenses,
+          fixedIncome: 0,
+          variableIncome: 0,
+          fixedExpenses: 0,
+          variableExpenses: 0,
+          totalInvestments: 0,
+          creditCardDebt: 0,
+          availableCredit: 0
+        };
+
+        await analyzeFinancialData(transactions, categories, stats, currentMonth);
+      } catch (error) {
+        console.error('Erro na análise de IA:', error);
+      }
+    }
+  };
 
   if (loading || !transactions || !categories) {
     return <div className="space-y-4">Carregando...</div>;
@@ -71,17 +109,36 @@ export default function RelatoriosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Relatórios</h1>
-        <select
-          value={currentMonth}
-          onChange={(e) => setCurrentMonth(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
-        >
-          {allMonths.map(month => (
-            <option key={month} value={month}>
-              {formatMonth(month)}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleAIAnalysis}
+            disabled={aiLoading}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2"
+          >
+            {aiLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Analisando...
+              </>
+            ) : (
+              <>
+                <span>🤖</span>
+                Análise com IA
+              </>
+            )}
+          </button>
+          <select
+            value={currentMonth}
+            onChange={(e) => setCurrentMonth(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          >
+            {allMonths.map(month => (
+              <option key={month} value={month}>
+                {formatMonth(month)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -169,6 +226,19 @@ export default function RelatoriosPage() {
           />
         </div>
       </div>
+
+      {/* Análise de IA */}
+      {showAIAnalysis && analysis && (
+        <div className="mt-8">
+          <AIAnalysisCard 
+            analysis={analysis}
+            onSuggestionClick={(suggestion) => {
+              console.log('Sugestão clicada:', suggestion);
+              // Aqui você pode implementar ações específicas para cada sugestão
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
