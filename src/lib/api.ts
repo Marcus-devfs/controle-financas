@@ -144,7 +144,7 @@ export interface AIAnalysis {
     summary: string;
     insights: string[];
     suggestions: {
-      type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment' | 'financial_planning' | 'budget_management';
+      type: string;
       title: string;
       description: string;
       impact: 'low' | 'medium' | 'high';
