@@ -39,11 +39,19 @@ export interface Category {
   updatedAt: string;
 }
 
-// Interface para transação
-export interface Transaction {
+// Interface para categoria populada
+export interface PopulatedCategory {
+  _id: string;
+  name: string;
+  type: 'income' | 'expense' | 'investment';
+  color: string;
+}
+
+// Interface para transação que vem da API (com dados populados)
+export interface ApiTransactionResponse {
   _id: string;
   userId: string;
-  categoryId: string;
+  categoryId: PopulatedCategory;
   description: string;
   amount: number;
   date: string;
@@ -68,6 +76,33 @@ export interface Transaction {
   month: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Interface para transação que é enviada para a API (sem dados populados)
+export interface ApiTransactionRequest {
+  categoryId: string;
+  description: string;
+  amount: number;
+  date: string;
+  type: 'income' | 'expense' | 'investment';
+  isFixed: boolean;
+  isRecurring: boolean;
+  recurringRule?: {
+    type: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    interval: number;
+    dayOfMonth?: number;
+    dayOfWeek?: number;
+    endDate?: string;
+    maxOccurrences?: number;
+  };
+  dayOfMonth?: number;
+  creditCardId?: string;
+  installmentInfo?: {
+    totalInstallments: number;
+    currentInstallment: number;
+    installmentAmount: number;
+  };
+  month: string;
 }
 
 // Interface para cartão de crédito
@@ -98,6 +133,39 @@ export interface DashboardStats {
   variableExpenses: number;
   creditCardDebt: number;
   availableCredit: number;
+}
+
+// Interface para análise de IA
+export interface AIAnalysis {
+  _id: string;
+  userId: string;
+  month: string;
+  analysis: {
+    summary: string;
+    insights: string[];
+    suggestions: {
+      type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment' | 'financial_planning' | 'budget_management';
+      title: string;
+      description: string;
+      impact: 'low' | 'medium' | 'high';
+      category?: string;
+      estimatedSavings?: number;
+      priority: number;
+      timeline?: string;
+    }[];
+    budgetAnalysis?: {
+      currentNeeds: string;
+      currentWants: string;
+      idealNeeds: number;
+      idealWants: number;
+      idealSavings: number;
+    };
+    riskLevel: 'low' | 'medium' | 'high';
+    score: number;
+    recommendations?: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Classe para gerenciar a API
@@ -264,8 +332,8 @@ class ApiClient {
     categoryId?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ transactions: Transaction[]; pagination: any }> {
-    const response = await this.client.get<ApiResponse<{ transactions: Transaction[]; pagination: any }>>('/api/transactions', {
+  }): Promise<{ transactions: ApiTransactionResponse[]; pagination: any }> {
+    const response = await this.client.get<ApiResponse<{ transactions: ApiTransactionResponse[]; pagination: any }>>('/api/transactions', {
       params,
     });
 
@@ -275,8 +343,8 @@ class ApiClient {
     throw new Error(response.data.message || 'Erro ao buscar transações');
   }
 
-  async getTransactionsByMonth(month: string): Promise<Transaction[]> {
-    const response = await this.client.get<ApiResponse<Transaction[]>>(`/api/transactions/month/${month}`);
+  async getTransactionsByMonth(month: string): Promise<ApiTransactionResponse[]> {
+    const response = await this.client.get<ApiResponse<ApiTransactionResponse[]>>(`/api/transactions/month/${month}`);
 
     if (response.data.success && response.data.data) {
       return response.data.data;
@@ -284,8 +352,8 @@ class ApiClient {
     throw new Error(response.data.message || 'Erro ao buscar transações do mês');
   }
 
-  async createTransaction(transaction: Omit<Transaction, '_id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Transaction> {
-    const response = await this.client.post<ApiResponse<Transaction>>('/api/transactions', transaction);
+  async createTransaction(transaction: ApiTransactionRequest): Promise<ApiTransactionResponse> {
+    const response = await this.client.post<ApiResponse<ApiTransactionResponse>>('/api/transactions', transaction);
 
     if (response.data.success && response.data.data) {
       return response.data.data;
@@ -293,8 +361,8 @@ class ApiClient {
     throw new Error(response.data.message || 'Erro ao criar transação');
   }
 
-  async updateTransaction(id: string, transaction: Partial<Transaction>): Promise<Transaction> {
-    const response = await this.client.put<ApiResponse<Transaction>>(`/api/transactions/${id}`, transaction);
+  async updateTransaction(id: string, transaction: Partial<ApiTransactionRequest>): Promise<ApiTransactionResponse> {
+    const response = await this.client.put<ApiResponse<ApiTransactionResponse>>(`/api/transactions/${id}`, transaction);
 
     if (response.data.success && response.data.data) {
       return response.data.data;
@@ -373,6 +441,50 @@ class ApiClient {
       return response.data.data;
     }
     throw new Error(response.data.message || 'Erro ao alterar status do cartão');
+  }
+
+  // Métodos para análise de IA
+  async getAIAnalysis(month: string): Promise<AIAnalysis> {
+    const response = await this.client.get<ApiResponse<AIAnalysis>>(`/api/ai-analysis/${month}`);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar análise de IA');
+  }
+
+  async saveAIAnalysis(month: string, analysis: AIAnalysis['analysis']): Promise<AIAnalysis> {
+    const response = await this.client.post<ApiResponse<AIAnalysis>>('/api/ai-analysis', {
+      month,
+      analysis
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao salvar análise de IA');
+  }
+
+  async deleteAIAnalysis(month: string): Promise<void> {
+    const response = await this.client.delete<ApiResponse>(`/api/ai-analysis/${month}`);
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao deletar análise de IA');
+    }
+  }
+
+  async getAllAIAnalyses(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ analyses: AIAnalysis[]; pagination: any }> {
+    const response = await this.client.get<ApiResponse<{ analyses: AIAnalysis[]; pagination: any }>>('/api/ai-analysis', {
+      params
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar análises de IA');
   }
 }
 

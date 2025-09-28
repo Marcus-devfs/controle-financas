@@ -9,7 +9,8 @@ import {
 } from '@/lib/types';
 import { 
   apiClient,
-  Transaction as ApiTransaction,
+  ApiTransactionResponse,
+  ApiTransactionRequest,
   Category as ApiCategory,
   CreditCard as ApiCreditCard,
   DashboardStats as ApiDashboardStats
@@ -17,10 +18,12 @@ import {
 import { getCurrentMonth } from '@/lib/data';
 
 // Funções de conversão entre tipos da API e tipos do frontend
-function convertApiTransaction(apiTransaction: ApiTransaction): Transaction {
+function convertApiTransaction(apiTransaction: ApiTransactionResponse): Transaction {
   return {
     id: apiTransaction._id,
-    categoryId: apiTransaction.categoryId,
+    categoryId: typeof apiTransaction.categoryId === 'object' 
+      ? apiTransaction.categoryId._id 
+      : apiTransaction.categoryId,
     description: apiTransaction.description,
     amount: apiTransaction.amount,
     date: apiTransaction.date,
@@ -185,7 +188,7 @@ export function useFinanceData(userId: string) {
       setSaving(true);
       
       // Converter para formato da API
-      const apiTransaction: Omit<ApiTransaction, '_id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+      const apiTransaction: ApiTransactionRequest = {
         categoryId: transaction.categoryId,
         description: transaction.description,
         amount: transaction.amount,

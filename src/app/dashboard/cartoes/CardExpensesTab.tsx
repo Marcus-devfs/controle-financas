@@ -2,6 +2,7 @@
 
 import { CreditCard, Transaction, Category } from "@/lib/types";
 import { formatCurrency } from "@/lib/data";
+import { useState } from "react";
 
 interface CardExpensesTabProps {
   currentMonthData: {
@@ -20,9 +21,28 @@ export function CardExpensesTab({
   onEditTransaction,
   onDeleteTransaction
 }: CardExpensesTabProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCard, setSelectedCard] = useState('');
+
   // Filtrar apenas transações que foram pagas com cartão
   const cardExpenses = currentMonthData.transactions
-    .filter((t: Transaction) => t.creditCardId && t.type === 'expense')
+    .filter((t: Transaction) => {
+      // Filtro básico: apenas gastos com cartão
+      if (!t.creditCardId || t.type !== 'expense') return false;
+      
+      // Filtro por categoria
+      const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+      const categoryMatch = !selectedCategory || categoryId === selectedCategory;
+      
+      // Filtro por cartão
+      const cardMatch = !selectedCard || t.creditCardId === selectedCard;
+      
+      // Filtro por descrição (busca)
+      const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return categoryMatch && cardMatch && searchMatch;
+    })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const getCardName = (cardId: string | undefined) => {
@@ -35,10 +55,8 @@ export function CardExpensesTab({
     return card ? `${card.name} - ****${card.lastFourDigits}` : 'Cartão não encontrado';
   };
 
-  const getCategoryName = (categoryId: string) => {
-    // Extrair ID se for objeto (como nos relatórios)
+  const getCategoryName = (categoryId: string | object) => {
     const actualCategoryId = typeof categoryId === 'object' ? (categoryId as any)._id : categoryId;
-    
     const category = currentMonthData.categories.find((c: Category) => c.id === actualCategoryId);
     return category?.name || 'Sem categoria';
   };
@@ -47,6 +65,64 @@ export function CardExpensesTab({
 
   return (
     <div className="space-y-6">
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/30 rounded-lg">
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">🔍 Buscar por descrição</label>
+          <input
+            type="text"
+            placeholder="Digite para buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">📂 Filtrar por categoria</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          >
+            <option value="">Todas as categorias</option>
+            {currentMonthData.categories
+              .filter(cat => cat.type === 'expense')
+              .map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-2">💳 Filtrar por cartão</label>
+          <select
+            value={selectedCard}
+            onChange={(e) => setSelectedCard(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+          >
+            <option value="">Todos os cartões</option>
+            {creditCards.map(card => (
+              <option key={card.id} value={card.id}>
+                {card.name} - ****{card.lastFourDigits}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setSelectedCategory('');
+              setSelectedCard('');
+            }}
+            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            Limpar Filtros
+          </button>
+        </div>
+      </div>
+
       {/* Resumo dos gastos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card p-6">
