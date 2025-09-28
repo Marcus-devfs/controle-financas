@@ -25,7 +25,15 @@ export default function RelatoriosPage() {
     loadMonthlyTrendData
   } = useReportsData(userId);
 
-  const { analyzeFinancialData, analysis, loading: aiLoading, error: aiError } = useAIAnalysis();
+  const { 
+    analyzeFinancialData, 
+    analysis, 
+    loading: aiLoading, 
+    error: aiError, 
+    hasExistingAnalysis,
+    checkExistingAnalysis,
+    deleteAnalysis
+  } = useAIAnalysis();
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
 
@@ -64,6 +72,61 @@ export default function RelatoriosPage() {
 
   const handleCloseModal = () => {
     setShowAIModal(false);
+  };
+
+  // Verificar se existe análise quando o mês mudar
+  useEffect(() => {
+    if (currentMonth) {
+      checkExistingAnalysis(currentMonth);
+    }
+  }, [currentMonth, checkExistingAnalysis]);
+
+  const handleViewExistingAnalysis = async () => {
+    if (transactions && categories) {
+      setShowAIModal(true);
+      try {
+        // Criar stats básicos para a análise
+        const monthlyIncome = transactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0);
+        
+        const monthlyExpenses = transactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const stats = {
+          totalIncome: monthlyIncome,
+          totalExpenses: monthlyExpenses,
+          balance: monthlyIncome - monthlyExpenses,
+          fixedIncome: 0,
+          variableIncome: 0,
+          fixedExpenses: 0,
+          variableExpenses: 0,
+          totalInvestments: 0,
+          creditCardDebt: 0,
+          availableCredit: 0
+        };
+
+        // Isso vai buscar a análise existente do banco
+        await analyzeFinancialData(transactions, categories, stats, currentMonth);
+      } catch (error) {
+        console.error('Erro ao carregar análise existente:', error);
+      }
+    }
+  };
+
+  const handleRegenerateAnalysis = async () => {
+    if (transactions && categories) {
+      try {
+        // Deletar análise existente
+        await deleteAnalysis(currentMonth);
+        
+        // Gerar nova análise
+        await handleAIAnalysis();
+      } catch (error) {
+        console.error('Erro ao regenerar análise:', error);
+      }
+    }
   };
 
   if (loading || !transactions || !categories) {
@@ -116,23 +179,52 @@ export default function RelatoriosPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Relatórios</h1>
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleAIAnalysis}
-            disabled={aiLoading}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2"
-          >
-            {aiLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Analisando...
-              </>
-            ) : (
-              <>
-                <span>🤖</span>
-                Análise com IA
-              </>
-            )}
-          </button>
+          {hasExistingAnalysis ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleViewExistingAnalysis}
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+              >
+                <span>👁️</span>
+                Ver Análise do Consultor IA
+              </button>
+              <button
+                onClick={handleRegenerateAnalysis}
+                disabled={aiLoading}
+                className="px-3 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2 text-sm"
+              >
+                {aiLoading ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Regenerando...
+                  </>
+                ) : (
+                  <>
+                    <span>🔄</span>
+                    Regenerar
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAIAnalysis}
+              disabled={aiLoading}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2"
+            >
+              {aiLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <span>🤖</span>
+                  Análise com IA
+                </>
+              )}
+            </button>
+          )}
           <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}

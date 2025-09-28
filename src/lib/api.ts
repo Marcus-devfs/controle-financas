@@ -100,6 +100,39 @@ export interface DashboardStats {
   availableCredit: number;
 }
 
+// Interface para análise de IA
+export interface AIAnalysis {
+  _id: string;
+  userId: string;
+  month: string;
+  analysis: {
+    summary: string;
+    insights: string[];
+    suggestions: {
+      type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment' | 'financial_planning' | 'budget_management';
+      title: string;
+      description: string;
+      impact: 'low' | 'medium' | 'high';
+      category?: string;
+      estimatedSavings?: number;
+      priority: number;
+      timeline?: string;
+    }[];
+    budgetAnalysis?: {
+      currentNeeds: string;
+      currentWants: string;
+      idealNeeds: number;
+      idealWants: number;
+      idealSavings: number;
+    };
+    riskLevel: 'low' | 'medium' | 'high';
+    score: number;
+    recommendations?: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Classe para gerenciar a API
 class ApiClient {
   private client: AxiosInstance;
@@ -373,6 +406,50 @@ class ApiClient {
       return response.data.data;
     }
     throw new Error(response.data.message || 'Erro ao alterar status do cartão');
+  }
+
+  // Métodos para análise de IA
+  async getAIAnalysis(month: string): Promise<AIAnalysis> {
+    const response = await this.client.get<ApiResponse<AIAnalysis>>(`/api/ai-analysis/${month}`);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar análise de IA');
+  }
+
+  async saveAIAnalysis(month: string, analysis: AIAnalysis['analysis']): Promise<AIAnalysis> {
+    const response = await this.client.post<ApiResponse<AIAnalysis>>('/api/ai-analysis', {
+      month,
+      analysis
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao salvar análise de IA');
+  }
+
+  async deleteAIAnalysis(month: string): Promise<void> {
+    const response = await this.client.delete<ApiResponse>(`/api/ai-analysis/${month}`);
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao deletar análise de IA');
+    }
+  }
+
+  async getAllAIAnalyses(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ analyses: AIAnalysis[]; pagination: any }> {
+    const response = await this.client.get<ApiResponse<{ analyses: AIAnalysis[]; pagination: any }>>('/api/ai-analysis', {
+      params
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar análises de IA');
   }
 }
 

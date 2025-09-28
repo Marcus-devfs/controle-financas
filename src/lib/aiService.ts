@@ -1,4 +1,5 @@
 import { Transaction, Category, DashboardStats } from './types';
+import { apiClient } from './api';
 
 export interface AIAnalysis {
   summary: string;
@@ -11,7 +12,7 @@ export interface AIAnalysis {
 }
 
 export interface AISuggestion {
-  type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment';
+  type: 'expense_reduction' | 'income_increase' | 'investment_optimization' | 'budget_adjustment' | 'financial_planning' | 'budget_management';
   title: string;
   description: string;
   impact: 'low' | 'medium' | 'high';
@@ -47,10 +48,22 @@ class AIService {
 
   async analyzeFinancialData(data: FinancialData): Promise<AIAnalysis> {
     try {
+      // Primeiro, verificar se já existe uma análise salva para este mês
+      try {
+        const existingAnalysis = await apiClient.getAIAnalysis(data.currentMonth);
+        console.log('📋 Análise existente encontrada para o mês:', data.currentMonth);
+        return existingAnalysis.analysis as AIAnalysis;
+      } catch (error) {
+        console.log('📝 Nenhuma análise existente encontrada, gerando nova...');
+      }
+
       // Se não tiver API key, usar análise local
       if (!this.apiKey) {
         console.log('🔧 Usando análise local (sem API key)');
-        return this.getLocalAnalysis(data);
+        const localAnalysis = this.getLocalAnalysis(data);
+        // Salvar análise local no banco
+        await this.saveAnalysisToDatabase(data.currentMonth, localAnalysis);
+        return localAnalysis;
       }
 
       console.log('🔑 API Key configurada, usando Gemini API via proxy');
@@ -61,12 +74,24 @@ class AIService {
       const response = await this.callGeminiAPI(prompt);
       console.log('🤖 Resposta da IA recebida:', response.substring(0, 200) + '...');
 
-      return this.parseAIResponse(response, data);
+      const analysis = this.parseAIResponse(response, data);
+      
+      // Salvar análise no banco de dados
+      await this.saveAnalysisToDatabase(data.currentMonth, analysis);
+      
+      return analysis;
     } catch (error) {
       console.error('❌ Erro na análise de IA:', error);
       console.log('🔄 Usando análise local como fallback');
       // Fallback para análise local
-      return this.getLocalAnalysis(data);
+      const localAnalysis = this.getLocalAnalysis(data);
+      // Tentar salvar análise local no banco
+      try {
+        await this.saveAnalysisToDatabase(data.currentMonth, localAnalysis);
+      } catch (saveError) {
+        console.error('❌ Erro ao salvar análise local:', saveError);
+      }
+      return localAnalysis;
     }
   }
 
@@ -425,6 +450,38 @@ JSON OBRIGATÓRIO (sem texto extra):
   async getQuickSuggestions(data: FinancialData): Promise<AISuggestion[]> {
     const analysis = await this.analyzeFinancialData(data);
     return analysis.suggestions.slice(0, 3); // Top 3 sugestões
+  }
+
+  // Método para salvar análise no banco de dados
+  private async saveAnalysisToDatabase(month: string, analysis: AIAnalysis): Promise<void> {
+    try {
+      await apiClient.saveAIAnalysis(month, analysis);
+      console.log('💾 Análise salva no banco de dados para o mês:', month);
+    } catch (error) {
+      console.error('❌ Erro ao salvar análise no banco:', error);
+      // Não re-lançar o erro para não quebrar o fluxo principal
+    }
+  }
+
+  // Método para verificar se existe análise para um mês
+  async hasAnalysisForMonth(month: string): Promise<boolean> {
+    try {
+      await apiClient.getAIAnalysis(month);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Método para deletar análise de um mês
+  async deleteAnalysisForMonth(month: string): Promise<void> {
+    try {
+      await apiClient.deleteAIAnalysis(month);
+      console.log('🗑️ Análise deletada para o mês:', month);
+    } catch (error) {
+      console.error('❌ Erro ao deletar análise:', error);
+      throw error;
+    }
   }
 }
 

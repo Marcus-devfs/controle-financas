@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { aiService, AIAnalysis, AISuggestion, FinancialData } from '@/lib/aiService';
 import { Transaction, Category, DashboardStats } from '@/lib/types';
 
@@ -6,6 +6,7 @@ export function useAIAnalysis() {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasExistingAnalysis, setHasExistingAnalysis] = useState<boolean>(false);
 
   const analyzeFinancialData = useCallback(async (
     transactions: Transaction[],
@@ -63,14 +64,43 @@ export function useAIAnalysis() {
   const clearAnalysis = useCallback(() => {
     setAnalysis(null);
     setError(null);
+    setHasExistingAnalysis(false);
+  }, []);
+
+  // Função para verificar se existe análise para um mês
+  const checkExistingAnalysis = useCallback(async (month: string) => {
+    try {
+      const hasAnalysis = await aiService.hasAnalysisForMonth(month);
+      setHasExistingAnalysis(hasAnalysis);
+      return hasAnalysis;
+    } catch (error) {
+      console.error('Erro ao verificar análise existente:', error);
+      setHasExistingAnalysis(false);
+      return false;
+    }
+  }, []);
+
+  // Função para deletar análise de um mês
+  const deleteAnalysis = useCallback(async (month: string) => {
+    try {
+      await aiService.deleteAnalysisForMonth(month);
+      setHasExistingAnalysis(false);
+      setAnalysis(null);
+    } catch (error) {
+      console.error('Erro ao deletar análise:', error);
+      throw error;
+    }
   }, []);
 
   return {
     analysis,
     loading,
     error,
+    hasExistingAnalysis,
     analyzeFinancialData,
     getQuickSuggestions,
-    clearAnalysis
+    clearAnalysis,
+    checkExistingAnalysis,
+    deleteAnalysis
   };
 }
