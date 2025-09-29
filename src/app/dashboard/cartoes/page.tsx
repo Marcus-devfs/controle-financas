@@ -51,13 +51,13 @@ export default function CartoesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Cartões de Crédito</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-semibold">Cartões de Crédito</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+            className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
           >
             {allMonths.map(month => (
               <option key={month} value={month}>
@@ -69,17 +69,19 @@ export default function CartoesPage() {
             {activeTab === 'expenses' && (
               <button
                 onClick={() => setShowExpenseModal(true)}
-                className="btn btn-secondary px-4 py-2"
+                className="btn btn-secondary px-3 py-2 text-sm sm:px-4 sm:text-base flex-1 sm:flex-none"
               >
-                💳 Lançar Gasto
+                <span className="sm:hidden">💳 Lançar</span>
+                <span className="hidden sm:inline">💳 Lançar Gasto</span>
               </button>
             )}
             {activeTab === 'cards' && (
               <button
                 onClick={() => setShowAddModal(true)}
-                className="btn btn-primary px-4 py-2"
+                className="btn btn-primary px-3 py-2 text-sm sm:px-4 sm:text-base flex-1 sm:flex-none"
               >
-                + Adicionar Cartão
+                <span className="sm:hidden">+ Adicionar</span>
+                <span className="hidden sm:inline">+ Adicionar Cartão</span>
               </button>
             )}
           </div>
@@ -90,23 +92,25 @@ export default function CartoesPage() {
       <div className="flex border-b border-border">
         <button
           onClick={() => setActiveTab('cards')}
-          className={`px-4 py-2 font-medium text-sm transition ${
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
             activeTab === 'cards'
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          💳 Meus Cartões
+          <span className="sm:hidden">💳</span>
+          <span className="hidden sm:inline">💳 Meus Cartões</span>
         </button>
         <button
           onClick={() => setActiveTab('expenses')}
-          className={`px-4 py-2 font-medium text-sm transition ${
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
             activeTab === 'expenses'
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          📊 Gastos do Cartão
+          <span className="sm:hidden">📊</span>
+          <span className="hidden sm:inline">📊 Gastos do Cartão</span>
         </button>
       </div>
 
