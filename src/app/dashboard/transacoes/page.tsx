@@ -71,13 +71,13 @@ export default function TransacoesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Transações</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-semibold">Transações</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
           >
             {allMonths.map(month => (
               <option key={month} value={month}>
@@ -85,20 +85,22 @@ export default function TransacoesPage() {
               </option>
             ))}
           </select>
-                 <div className="flex gap-2">
-                   <button
-                     onClick={() => setShowAddModal(true)}
-                     className="btn btn-primary px-4 py-2"
-                   >
-                     + Adicionar Transação
-                   </button>
-                   <button
-                     onClick={() => window.location.href = '/dashboard/cartoes'}
-                     className="btn btn-secondary px-4 py-2"
-                   >
-                     💳 Gastos no Cartão
-                   </button>
-                 </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn btn-primary px-3 py-2 text-sm sm:px-4 sm:text-base flex-1 sm:flex-none"
+            >
+              <span className="sm:hidden">+ Adicionar</span>
+              <span className="hidden sm:inline">+ Adicionar Transação</span>
+            </button>
+            <button
+              onClick={() => window.location.href = '/dashboard/cartoes'}
+              className="btn btn-secondary px-3 py-2 text-sm sm:px-4 sm:text-base"
+            >
+              <span className="sm:hidden">💳</span>
+              <span className="hidden sm:inline">💳 Gastos no Cartão</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -106,44 +108,52 @@ export default function TransacoesPage() {
       <div className="flex border-b border-border">
         <button
           onClick={() => setActiveTab('expense')}
-          className={`px-4 py-2 font-medium text-sm transition ${
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
             activeTab === 'expense'
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          💸 Despesas
+          <span className="sm:hidden">💸</span>
+          <span className="hidden sm:inline">💸 Despesas</span>
         </button>
         <button
           onClick={() => setActiveTab('income')}
-          className={`px-4 py-2 font-medium text-sm transition ${
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
             activeTab === 'income'
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          💰 Receitas
+          <span className="sm:hidden">💰</span>
+          <span className="hidden sm:inline">💰 Receitas</span>
         </button>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/30 rounded-lg">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/30 rounded-lg">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">🔍 Buscar por descrição</label>
+          <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+            <span className="sm:hidden">🔍</span>
+            <span className="hidden sm:inline">🔍 Buscar por descrição</span>
+          </label>
           <input
             type="text"
             placeholder="Digite para buscar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
           />
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-2">📂 Filtrar por categoria</label>
+          <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+            <span className="sm:hidden">📂</span>
+            <span className="hidden sm:inline">📂 Filtrar por categoria</span>
+          </label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
           >
             <option value="">Todas as categorias</option>
             {categories
@@ -229,81 +239,142 @@ function TransactionList({
 }) {
   if (transactions.length === 0) {
     return (
-      <div className="rounded-xl border border-black/10 p-8 text-center">
-        <p className="text-foreground/60">Nenhuma transação registrada para este mês</p>
-        <p className="text-sm text-foreground/40 mt-2">Adicione sua primeira transação clicando no botão acima</p>
+      <div className="rounded-xl border border-black/10 p-6 md:p-8 text-center">
+        <p className="text-foreground/60 text-sm md:text-base">Nenhuma transação registrada para este mês</p>
+        <p className="text-xs md:text-sm text-foreground/40 mt-2">Adicione sua primeira transação clicando no botão acima</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-black/10 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-foreground/5">
-            <tr>
-              <th className="text-left p-4 text-sm font-medium">Data</th>
-              <th className="text-left p-4 text-sm font-medium">Descrição</th>
-              <th className="text-left p-4 text-sm font-medium">Categoria</th>
-              <th className="text-left p-4 text-sm font-medium">Tipo</th>
-              <th className="text-right p-4 text-sm font-medium">Valor</th>
-              <th className="text-center p-4 text-sm font-medium">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((transaction) => (
-              <tr key={transaction.id} className="border-t border-black/5 dark:border-white/5">
-                <td className="p-4 text-sm">
-                  {new Date(transaction.date).toLocaleDateString('pt-BR')}
-                </td>
-                <td className="p-4 text-sm font-medium">{transaction.description}</td>
-                <td className="p-4 text-sm">
-                  {(() => {
-                    const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
-                    const category = categories.find((c: Category) => c.id === categoryId);
-                    return (
-                      <span 
-                        className="px-2 py-1 rounded-full text-xs"
-                        style={{ 
-                          backgroundColor: category ? category.color + '20' : '#f3f4f6',
-                          color: category ? category.color : '#6b7280'
-                        }}
-                      >
-                        {category ? category.name : 'Sem categoria'}
-                      </span>
-                    );
-                  })()}
-                </td>
-                <td className="p-4 text-sm text-foreground/70">{transaction.displayType}</td>
-                <td className={`p-4 text-sm font-medium text-right ${
+    <>
+      {/* Mobile View - Cards */}
+      <div className="md:hidden space-y-3">
+        {transactions.map((transaction) => {
+          const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
+          const category = categories.find((c: Category) => c.id === categoryId);
+          
+          return (
+            <div key={transaction.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <h3 className="font-medium text-gray-900 text-sm">{transaction.description}</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+                <div className={`text-right ${
                   transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
                     ? 'text-green-600'
                     : 'text-red-600'
                 }`}>
-                  {formatCurrency(transaction.amount)}
-                </td>
-                <td className="p-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => onEdit(transaction)}
-                      className="text-xs px-2 py-1 rounded hover:bg-foreground/10 transition"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => onDelete(transaction.id)}
-                      className="text-xs px-2 py-1 rounded hover:bg-red-100 text-red-600 transition"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <p className="font-semibold text-sm">{formatCurrency(transaction.amount)}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span 
+                    className="px-2 py-1 rounded-full text-xs"
+                    style={{ 
+                      backgroundColor: category ? category.color + '20' : '#f3f4f6',
+                      color: category ? category.color : '#6b7280'
+                    }}
+                  >
+                    {category ? category.name : 'Sem categoria'}
+                  </span>
+                  <span className="text-xs text-gray-500">{transaction.displayType}</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onEdit(transaction)}
+                    className="text-xs px-2 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => onDelete(transaction.id)}
+                    className="text-xs px-2 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      {/* Desktop View - Table */}
+      <div className="hidden md:block rounded-xl border border-black/10 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-foreground/5">
+              <tr>
+                <th className="text-left p-4 text-sm font-medium">Data</th>
+                <th className="text-left p-4 text-sm font-medium">Descrição</th>
+                <th className="text-left p-4 text-sm font-medium">Categoria</th>
+                <th className="text-left p-4 text-sm font-medium">Tipo</th>
+                <th className="text-right p-4 text-sm font-medium">Valor</th>
+                <th className="text-center p-4 text-sm font-medium">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((transaction) => (
+                <tr key={transaction.id} className="border-t border-black/5 dark:border-white/5">
+                  <td className="p-4 text-sm">
+                    {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                  </td>
+                  <td className="p-4 text-sm font-medium">{transaction.description}</td>
+                  <td className="p-4 text-sm">
+                    {(() => {
+                      const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
+                      const category = categories.find((c: Category) => c.id === categoryId);
+                      return (
+                        <span 
+                          className="px-2 py-1 rounded-full text-xs"
+                          style={{ 
+                            backgroundColor: category ? category.color + '20' : '#f3f4f6',
+                            color: category ? category.color : '#6b7280'
+                          }}
+                        >
+                          {category ? category.name : 'Sem categoria'}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td className="p-4 text-sm text-foreground/70">{transaction.displayType}</td>
+                  <td className={`p-4 text-sm font-medium text-right ${
+                    transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}>
+                    {formatCurrency(transaction.amount)}
+                  </td>
+                  <td className="p-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => onEdit(transaction)}
+                        className="text-xs px-2 py-1 rounded hover:bg-foreground/10 transition"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => onDelete(transaction.id)}
+                        className="text-xs px-2 py-1 rounded hover:bg-red-100 text-red-600 transition"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 

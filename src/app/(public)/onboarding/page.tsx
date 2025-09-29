@@ -34,6 +34,18 @@ export default function OnboardingPage() {
       ]
     },
     {
+      title: "Consultor IA Exclusivo",
+      subtitle: "Análise financeira inteligente que você não encontra em outros apps",
+      description: "Nossa IA analisa seus dados financeiros e oferece insights personalizados, identificando problemas e sugerindo soluções que você não conseguiria ver sozinho.",
+      icon: "🤖",
+      features: [
+        "🧠 Análise minuciosa dos seus gastos",
+        "💡 Identificação de problemas ocultos",
+        "🎯 Sugestões personalizadas de melhoria",
+        "📊 Relatórios de consultoria mensal"
+      ]
+    },
+    {
       title: "Segurança e Privacidade",
       subtitle: "Seus dados financeiros protegidos com tecnologia de ponta",
       description: "Utilizamos criptografia avançada e seguimos as melhores práticas de segurança para proteger suas informações.",

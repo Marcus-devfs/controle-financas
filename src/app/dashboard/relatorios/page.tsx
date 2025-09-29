@@ -176,32 +176,35 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Relatórios</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-semibold">Relatórios</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           {hasExistingAnalysis ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <button
                 onClick={handleViewExistingAnalysis}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
+                className="px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 <span>👁️</span>
-                Ver Análise do Consultor IA
+                <span className="sm:hidden">Ver Análise IA</span>
+                <span className="hidden sm:inline">Ver Análise do Consultor IA</span>
               </button>
               <button
                 onClick={handleRegenerateAnalysis}
                 disabled={aiLoading}
-                className="px-3 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2 text-sm"
+                className="px-3 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center justify-center gap-2 text-xs sm:text-sm"
               >
                 {aiLoading ? (
                   <>
                     <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Regenerando...
+                    <span className="sm:hidden">...</span>
+                    <span className="hidden sm:inline">Regenerando...</span>
                   </>
                 ) : (
                   <>
                     <span>🔄</span>
-                    Regenerar
+                    <span className="sm:hidden">Regenerar</span>
+                    <span className="hidden sm:inline">Regenerar</span>
                   </>
                 )}
               </button>
@@ -210,17 +213,19 @@ export default function RelatoriosPage() {
             <button
               onClick={handleAIAnalysis}
               disabled={aiLoading}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2"
+              className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center justify-center gap-2 text-sm sm:text-base w-full sm:w-auto"
             >
               {aiLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Analisando...
+                  <span className="sm:hidden">Analisando...</span>
+                  <span className="hidden sm:inline">Analisando...</span>
                 </>
               ) : (
                 <>
                   <span>🤖</span>
-                  Análise com IA
+                  <span className="sm:hidden">Análise com IA</span>
+                  <span className="hidden sm:inline">Análise com IA</span>
                 </>
               )}
             </button>
@@ -228,7 +233,7 @@ export default function RelatoriosPage() {
           <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground"
+            className="px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm w-full sm:w-auto"
           >
             {allMonths.map(month => (
               <option key={month} value={month}>
@@ -252,7 +257,7 @@ export default function RelatoriosPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <MonthlyTrend 
           months={allMonths.slice(0, 6)} 
           loadMonthlyTrendData={loadMonthlyTrendData}
@@ -268,10 +273,10 @@ export default function RelatoriosPage() {
 
       {/* NOVOS GRÁFICOS - Adicionados abaixo de tudo */}
       <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-6 text-center">📊 Novos Gráficos Visuais</h2>
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 text-center">📊 Novos Gráficos Visuais</h2>
         
         {/* Gráficos de Pizza */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <PieChart 
             data={categoryExpenses.map(cat => ({
               name: cat.name,
@@ -293,7 +298,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* Gráfico Fixas vs Variáveis */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <FixedVsVariableChart 
             transactions={currentMonthTransactions}
           />
@@ -303,7 +308,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* Gráfico de Barras para Tendência */}
-        <div className="grid grid-cols-1 gap-6 mb-8">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <MonthlyTrendBarChart 
             months={allMonths.slice(0, 6)} 
             loadMonthlyTrendData={loadMonthlyTrendData}
@@ -311,7 +316,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* Gráfico de Comparação por Tipo */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <IncomeVsExpenseChart 
             transactions={currentMonthTransactions}
           />
