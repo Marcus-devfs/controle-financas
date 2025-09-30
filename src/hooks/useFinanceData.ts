@@ -115,7 +115,7 @@ export function useFinanceData(userId: string) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, currentMonth]);
 
   // Função principal que carrega tudo
   const loadData = useCallback(async (month?: string) => {
@@ -165,7 +165,7 @@ export function useFinanceData(userId: string) {
       
       initializeData();
     }
-  }, [userId]); // Apenas userId como dependência
+  }, [userId, currentMonth]); // Apenas userId como dependência
 
   // Carregar dados quando o mês mudar
   useEffect(() => {
