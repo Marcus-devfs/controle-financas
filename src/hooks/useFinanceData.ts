@@ -165,14 +165,14 @@ export function useFinanceData(userId: string) {
       
       initializeData();
     }
-  }, [userId, currentMonth]); // Apenas userId como dependência
+  }, [userId]); // Apenas userId como dependência
 
   // Carregar dados quando o mês mudar
   useEffect(() => {
-    if (userId && currentMonth && !isInitialized.current) {
+    if (userId && currentMonth && isInitialized.current) {
       loadMonthData(currentMonth);
     }
-  }, [currentMonth, userId, loadMonthData, isInitialized]);
+  }, [currentMonth, userId, loadMonthData]);
 
   const setCurrentMonth = useCallback((month: string) => {
     if (month === currentMonth) return;
