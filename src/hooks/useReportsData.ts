@@ -185,16 +185,69 @@ export function useReportsData(userId: string) {
     setCurrentMonth(month);
   }, [currentMonth]);
 
-  // Função para obter meses disponíveis (últimos 12 meses)
+  // Função para obter meses disponíveis (histórico + futuros com dados)
   const getAvailableMonths = useCallback(() => {
-    const months = [];
+    const months = new Set<string>();
     const currentDate = new Date();
+    
+    // Adicionar últimos 12 meses (histórico)
     for (let i = 0; i < 12; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      months.push(date.toISOString().slice(0, 7));
+      months.add(date.toISOString().slice(0, 7));
     }
-    return months;
-  }, []);
+    
+    // Adicionar meses que já têm transações (incluindo futuros)
+    transactions.forEach(transaction => {
+      if (transaction.month) {
+        months.add(transaction.month);
+      }
+    });
+    
+    // Adicionar meses futuros baseados em transações recorrentes
+    const recurringTransactions = transactions.filter(t => t.recurringRule);
+    
+    recurringTransactions.forEach(transaction => {
+      if (transaction.recurringRule) {
+        const startDate = new Date(transaction.date);
+        const endDate = transaction.recurringRule.endDate ? new Date(transaction.recurringRule.endDate) : null;
+        const frequency = transaction.recurringRule.type;
+        
+        // Adicionar até 12 meses no futuro ou até a data de fim
+        for (let i = 1; i <= 12; i++) {
+          let nextDate: Date;
+          
+          switch (frequency) {
+            case 'monthly':
+              nextDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, startDate.getDate());
+              break;
+            case 'weekly':
+              nextDate = new Date(startDate.getTime() + (i * 7 * 24 * 60 * 60 * 1000));
+              break;
+            case 'yearly':
+              nextDate = new Date(startDate.getFullYear() + i, startDate.getMonth(), startDate.getDate());
+              break;
+            default:
+              nextDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, startDate.getDate());
+          }
+          
+          // Se há data de fim e já passou, parar
+          if (endDate && nextDate > endDate) {
+            break;
+          }
+          
+          // Se a data futura não passou do limite de 12 meses, adicionar
+          const monthsDiff = (nextDate.getFullYear() - currentDate.getFullYear()) * 12 + 
+                           (nextDate.getMonth() - currentDate.getMonth());
+          if (monthsDiff <= 12) {
+            months.add(nextDate.toISOString().slice(0, 7));
+          }
+        }
+      }
+    });
+    
+    // Converter para array e ordenar
+    return Array.from(months).sort();
+  }, [transactions]);
 
   // Função para obter dados de um mês específico
   const getMonthData = useCallback(async (month: string) => {
