@@ -45,6 +45,7 @@ export interface Transaction {
   amount: number;
   date: string;
   type: 'income' | 'expense' | 'investment';
+  isPaid: boolean;
   isFixed: boolean; // true para receitas/despesas fixas
   isRecurring: boolean; // true para transações recorrentes
   recurringRule?: RecurringRule;

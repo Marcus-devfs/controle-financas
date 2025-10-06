@@ -27,6 +27,7 @@ function convertApiTransaction(apiTransaction: ApiTransactionResponse): Transact
     amount: apiTransaction.amount,
     date: apiTransaction.date,
     type: apiTransaction.type,
+    isPaid: apiTransaction.isPaid ?? false,
     isFixed: apiTransaction.isFixed,
     isRecurring: apiTransaction.isRecurring,
     recurringRule: apiTransaction.recurringRule ? {
@@ -193,6 +194,7 @@ export function useFinanceData(userId: string) {
         amount: transaction.amount,
         date: transaction.date,
         type: transaction.type,
+        isPaid: transaction.isPaid ?? false,
         isFixed: transaction.isFixed,
         isRecurring: transaction.isRecurring,
         recurringRule: transaction.recurringRule,
@@ -218,18 +220,21 @@ export function useFinanceData(userId: string) {
     transactionId: string,
     updates: Partial<Transaction>
   ) => {
+    setError(null);
+    
+    // Otimismo: aplicar no estado local imediatamente
+    setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, ...updates } : t));
+    
     try {
-      setError(null);
-      
       await apiClient.updateTransaction(transactionId, updates);
-      
-      // Recarregar dados
-      await loadMonthData(currentMonth);
+      // Opcional: poderíamos refrescar silenciosamente em background se necessário
     } catch (error: any) {
+      // Reverter em caso de erro
       setError(error.message || 'Erro ao atualizar transação');
+      await loadMonthData(currentMonth);
       throw error;
     }
-  }, [userId, currentMonth, loadData]);
+  }, [userId, currentMonth, loadMonthData]);
 
   const removeTransaction = useCallback(async (transactionId: string) => {
     try {

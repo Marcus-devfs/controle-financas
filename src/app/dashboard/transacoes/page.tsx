@@ -3,6 +3,7 @@
 import { useFinanceData } from "@/hooks/useFinanceData";
 import { formatCurrency, formatMonth } from "@/lib/data";
 import { useState } from "react";
+import { PaidSwitch } from "@/components/PaidSwitch";
 import { Transaction, Category } from "@/lib/types";
 import { useUserId } from "@/hooks/useUserId";
 import { formatCurrencyWhileTyping, parseCurrencyInputNew, formatCurrencyInput } from "@/lib/utils";
@@ -14,14 +15,14 @@ export default function TransacoesPage() {
   const [activeTab, setActiveTab] = useState<'income' | 'expense'>('expense');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  
-  const { 
+
+  const {
     transactions,
     categories,
     loading,
-    saving, 
+    saving,
     currentMonth,
-    setCurrentMonth, 
+    setCurrentMonth,
     getAvailableMonths,
     addTransaction,
     updateTransaction,
@@ -42,32 +43,32 @@ export default function TransacoesPage() {
 
   console.log('activeTab', activeTab);
 
-        // Filtrar transações baseado na aba ativa e excluir gastos do cartão
-        const filteredTransactions = transactions.filter(t => {
-          // Filtro por tipo (aba ativa)
-          const typeMatch = activeTab === 'income' ? t.type === 'income' : t.type === 'expense' && !t.creditCardId;
-          
-          // Filtro por categoria
-          const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
-          const categoryMatch = !selectedCategory || categoryId === selectedCategory;
-          
-          // Filtro por descrição (busca)
-          const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
-          
-          return typeMatch && categoryMatch && searchMatch;
-        });
+  // Filtrar transações baseado na aba ativa e excluir gastos do cartão
+  const filteredTransactions = transactions.filter(t => {
+    // Filtro por tipo (aba ativa)
+    const typeMatch = activeTab === 'income' ? t.type === 'income' : t.type === 'expense' && !t.creditCardId;
 
-        const allTransactions = filteredTransactions.map((t: Transaction) => ({
-          ...t,
-          displayType: t.isFixed ? 
-            (t.type === 'income' ? 'Receita Fixa' : 'Despesa Fixa') :
-            (t.type === 'income' ? 'Receita Variável' : 'Despesa Variável'),
-          typeCode: t.isFixed ? 
-            (t.type === 'income' ? 'fixedIncome' : 'fixedExpenses') :
-            (t.type === 'income' ? 'variableIncome' : 'variableExpenses')
-        }));
-        
-        const sortedTransactions = allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Filtro por categoria
+    const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+    const categoryMatch = !selectedCategory || categoryId === selectedCategory;
+
+    // Filtro por descrição (busca)
+    const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    return typeMatch && categoryMatch && searchMatch;
+  });
+
+  const allTransactions = filteredTransactions.map((t: Transaction) => ({
+    ...t,
+    displayType: t.isFixed ?
+      (t.type === 'income' ? 'Receita Fixa' : 'Despesa Fixa') :
+      (t.type === 'income' ? 'Receita Variável' : 'Despesa Variável'),
+    typeCode: t.isFixed ?
+      (t.type === 'income' ? 'fixedIncome' : 'fixedExpenses') :
+      (t.type === 'income' ? 'variableIncome' : 'variableExpenses')
+  }));
+
+  const sortedTransactions = allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="space-y-6">
@@ -108,22 +109,20 @@ export default function TransacoesPage() {
       <div className="flex border-b border-border">
         <button
           onClick={() => setActiveTab('expense')}
-          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
-            activeTab === 'expense'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${activeTab === 'expense'
+            ? 'border-b-2 border-primary text-primary'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <span className="sm:hidden">💸</span>
           <span className="hidden sm:inline">💸 Despesas</span>
         </button>
         <button
           onClick={() => setActiveTab('income')}
-          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
-            activeTab === 'income'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${activeTab === 'income'
+            ? 'border-b-2 border-primary text-primary'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <span className="sm:hidden">💰</span>
           <span className="hidden sm:inline">💰 Receitas</span>
@@ -180,15 +179,16 @@ export default function TransacoesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
-          <TransactionList 
+          <TransactionList
             transactions={sortedTransactions}
             categories={categories}
             onEdit={setEditingTransaction}
             onDelete={(id) => deleteTransaction(id)}
+            onTogglePaid={(id, paid) => updateTransaction(id, { isPaid: paid })}
           />
         </div>
         <div>
-          <CategoryManager 
+          <CategoryManager
             categories={categories}
             onAddCategory={addCategory}
             onDeleteCategory={deleteCategory}
@@ -197,18 +197,18 @@ export default function TransacoesPage() {
         </div>
       </div>
 
-             {showAddModal && (
-               <TransactionModal
-                 categories={categories}
-                 defaultType={activeTab === 'income' ? 'income' : 'expense'}
-                 saving={saving}
-                 onSave={async (transaction) => {
-                   await addTransaction(transaction);
-                   setShowAddModal(false);
-                 }}
-                 onClose={() => setShowAddModal(false)}
-               />
-             )}
+      {showAddModal && (
+        <TransactionModal
+          categories={categories}
+          defaultType={activeTab === 'income' ? 'income' : 'expense'}
+          saving={saving}
+          onSave={async (transaction) => {
+            await addTransaction(transaction);
+            setShowAddModal(false);
+          }}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
 
       {editingTransaction && (
         <TransactionModal
@@ -226,16 +226,18 @@ export default function TransacoesPage() {
   );
 }
 
-function TransactionList({ 
-  transactions, 
+function TransactionList({
+  transactions,
   categories,
-  onEdit, 
-  onDelete 
-}: { 
+  onEdit,
+  onDelete,
+  onTogglePaid
+}: {
   transactions: (Transaction & { displayType: string; typeCode: string })[];
   categories: Category[];
   onEdit: (transaction: Transaction) => void;
   onDelete: (id: string) => void;
+  onTogglePaid: (id: string, paid: boolean) => void;
 }) {
   if (transactions.length === 0) {
     return (
@@ -253,7 +255,7 @@ function TransactionList({
         {transactions.map((transaction) => {
           const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
           const category = categories.find((c: Category) => c.id === categoryId);
-          
+
           return (
             <div key={transaction.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
               <div className="flex items-start justify-between mb-3">
@@ -263,20 +265,19 @@ function TransactionList({
                     {new Date(transaction.date).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
-                <div className={`text-right ${
-                  transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}>
+                <div className={`text-right ${transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
+                  ? 'text-green-600'
+                  : 'text-red-600'
+                  }`}>
                   <p className="font-semibold text-sm">{formatCurrency(transaction.amount)}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span 
+                  <span
                     className="px-2 py-1 rounded-full text-xs"
-                    style={{ 
+                    style={{
                       backgroundColor: category ? category.color + '20' : '#f3f4f6',
                       color: category ? category.color : '#6b7280'
                     }}
@@ -285,7 +286,17 @@ function TransactionList({
                   </span>
                   <span className="text-xs text-gray-500">{transaction.displayType}</span>
                 </div>
-                
+
+              </div>
+
+              <div className="flex items-center gap-3 w-full justify-between mt-1">
+                <div className="flex items-center gap-2 text-xs min-w-20">
+                  <PaidSwitch
+                    isPaid={transaction.isPaid === true}
+                    onChange={async (next) => onTogglePaid(transaction.id, next)}
+                  />
+                  <span>Pago</span>
+                </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => onEdit(transaction)}
@@ -316,6 +327,7 @@ function TransactionList({
                 <th className="text-left p-4 text-sm font-medium">Descrição</th>
                 <th className="text-left p-4 text-sm font-medium">Categoria</th>
                 <th className="text-left p-4 text-sm font-medium">Tipo</th>
+                <th className="text-center p-4 text-sm font-medium">Pago</th>
                 <th className="text-right p-4 text-sm font-medium">Valor</th>
                 <th className="text-center p-4 text-sm font-medium">Ações</th>
               </tr>
@@ -332,9 +344,9 @@ function TransactionList({
                       const categoryId = typeof transaction.categoryId === 'object' ? (transaction.categoryId as any)._id : transaction.categoryId;
                       const category = categories.find((c: Category) => c.id === categoryId);
                       return (
-                        <span 
+                        <span
                           className="px-2 py-1 rounded-full text-xs"
-                          style={{ 
+                          style={{
                             backgroundColor: category ? category.color + '20' : '#f3f4f6',
                             color: category ? category.color : '#6b7280'
                           }}
@@ -345,11 +357,18 @@ function TransactionList({
                     })()}
                   </td>
                   <td className="p-4 text-sm text-foreground/70">{transaction.displayType}</td>
-                  <td className={`p-4 text-sm font-medium text-right ${
-                    transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}>
+                  <td className="p-4 text-sm">
+                    <div className="flex items-center gap-3 justify-center">
+                      <PaidSwitch
+                        isPaid={transaction.isPaid === true}
+                        onChange={async (next) => onTogglePaid(transaction.id, next)}
+                      />
+                    </div>
+                  </td>
+                  <td className={`p-4 text-sm font-medium text-right ${transaction.displayType.includes('Receita') || transaction.displayType.includes('Investimento')
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                    }`}>
                     {formatCurrency(transaction.amount)}
                   </td>
                   <td className="p-4 text-center">
@@ -378,12 +397,12 @@ function TransactionList({
   );
 }
 
-function CategoryManager({ 
-  categories, 
+function CategoryManager({
+  categories,
   onAddCategory,
   onDeleteCategory,
   saving = false
-}: { 
+}: {
   categories: Category[];
   onAddCategory: (category: Omit<Category, 'id'>) => void;
   onDeleteCategory: (categoryId: string) => void;
@@ -426,14 +445,14 @@ function CategoryManager({
       <div className="space-y-2">
         {categories.map((category) => (
           <div key={category.id} className="flex items-center gap-2 p-2 rounded hover:bg-foreground/5">
-            <div 
+            <div
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: category.color }}
             ></div>
             <span className="text-sm flex-1">{category.name}</span>
             <span className="text-xs text-foreground/60">
-              {category.type === 'income' ? 'Receita' : 
-               category.type === 'expense' ? 'Despesa' : 'Investimento'}
+              {category.type === 'income' ? 'Receita' :
+                category.type === 'expense' ? 'Despesa' : 'Investimento'}
             </span>
             <button
               onClick={() => handleDeleteCategory(category.id)}
@@ -516,6 +535,7 @@ function TransactionModal({
     amount: transaction?.amount || 0,
     date: transaction?.date || new Date().toISOString().split('T')[0],
     type: transaction?.type || defaultType,
+    isPaid: transaction?.isPaid ?? false,
     isFixed: transaction?.isFixed || false,
     isRecurring: transaction?.isRecurring || false,
     dayOfMonth: transaction?.dayOfMonth || 1,
@@ -535,13 +555,13 @@ function TransactionModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const transactionData = {
       ...formData,
       amount: parseCurrencyInputNew(amountDisplay),
       recurringRule: formData.isRecurring ? formData.recurringRule : undefined
     };
-    
+
     onSave(transactionData);
   };
 
@@ -556,11 +576,11 @@ function TransactionModal({
         <h2 className="text-xl font-semibold mb-4">
           {transaction ? 'Editar Transação' : 'Nova Transação'}
         </h2>
-        
+
         <div className="mb-4 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
           <p><strong>💡 Dica:</strong> Para <strong>gastos com cartão</strong>, use a página de Cartões. Aqui você lança apenas <strong>receitas e despesas normais</strong> (dinheiro, PIX, etc.).</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Descrição</label>
@@ -595,6 +615,24 @@ function TransactionModal({
               className="input"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Pago</label>
+            <div className="flex items-center gap-2 text-sm">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={formData.isPaid === true}
+                onClick={() => setFormData({ ...formData, isPaid: !formData.isPaid })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.isPaid ? 'bg-green-500' : 'bg-gray-300'}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${formData.isPaid ? 'translate-x-5' : 'translate-x-1'}`}
+                />
+              </button>
+              <span>{formData.isPaid ? 'Pago' : 'Não pago'}</span>
+            </div>
           </div>
 
           <div>
@@ -649,7 +687,7 @@ function TransactionModal({
                   type="checkbox"
                   id="isRecurring"
                   checked={formData.isRecurring}
-                onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
+                  onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
                   className="rounded"
                 />
                 <label htmlFor="isRecurring" className="text-sm">
@@ -668,18 +706,18 @@ function TransactionModal({
               <p className="text-xs text-blue-700 dark:text-blue-300">
                 Para transações que se repetem automaticamente (ex: aluguel, salário, assinaturas)
               </p>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Tipo</label>
                   <select
                     value={formData.recurringRule.type}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      recurringRule: { 
-                        ...formData.recurringRule, 
-                        type: e.target.value as 'daily' | 'weekly' | 'monthly' | 'yearly' 
-                      } 
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      recurringRule: {
+                        ...formData.recurringRule,
+                        type: e.target.value as 'daily' | 'weekly' | 'monthly' | 'yearly'
+                      }
                     })}
                     className="input"
                   >
@@ -692,20 +730,20 @@ function TransactionModal({
 
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    A cada {formData.recurringRule.type === 'daily' ? 'dias' : 
-                            formData.recurringRule.type === 'weekly' ? 'semanas' : 
-                            formData.recurringRule.type === 'monthly' ? 'meses' : 'anos'}
+                    A cada {formData.recurringRule.type === 'daily' ? 'dias' :
+                      formData.recurringRule.type === 'weekly' ? 'semanas' :
+                        formData.recurringRule.type === 'monthly' ? 'meses' : 'anos'}
                   </label>
                   <input
                     type="number"
                     min="1"
                     value={formData.recurringRule.interval}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      recurringRule: { 
-                        ...formData.recurringRule, 
-                        interval: parseInt(e.target.value) || 1 
-                      } 
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      recurringRule: {
+                        ...formData.recurringRule,
+                        interval: parseInt(e.target.value) || 1
+                      }
                     })}
                     className="input"
                   />
@@ -732,12 +770,12 @@ function TransactionModal({
                 <input
                   type="date"
                   value={formData.recurringRule.endDate}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    recurringRule: { 
-                      ...formData.recurringRule, 
-                      endDate: e.target.value 
-                    } 
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    recurringRule: {
+                      ...formData.recurringRule,
+                      endDate: e.target.value
+                    }
                   })}
                   className="input"
                 />

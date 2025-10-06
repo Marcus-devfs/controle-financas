@@ -56,6 +56,7 @@ export interface ApiTransactionResponse {
   amount: number;
   date: string;
   type: 'income' | 'expense' | 'investment';
+  isPaid: boolean;
   isFixed: boolean;
   isRecurring: boolean;
   recurringRule?: {
@@ -85,6 +86,7 @@ export interface ApiTransactionRequest {
   amount: number;
   date: string;
   type: 'income' | 'expense' | 'investment';
+  isPaid: boolean;
   isFixed: boolean;
   isRecurring: boolean;
   recurringRule?: {
