@@ -14,6 +14,7 @@ function convertApiTransaction(apiTransaction: any): Transaction {
     date: apiTransaction.date,
     type: apiTransaction.type,
     isFixed: apiTransaction.isFixed,
+    isPaid: apiTransaction.isPaid,
     isRecurring: apiTransaction.isRecurring,
     recurringRule: apiTransaction.recurringRule ? {
       id: `${apiTransaction._id}-recurring`,

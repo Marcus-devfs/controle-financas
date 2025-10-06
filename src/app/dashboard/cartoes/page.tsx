@@ -475,6 +475,7 @@ function CardExpenseModal({
     date: new Date().toISOString().split('T')[0],
     categoryId: '',
     creditCardId: '',
+    isPaid: true,
     isFixed: false,
     isRecurring: false,
     dayOfMonth: 1,
