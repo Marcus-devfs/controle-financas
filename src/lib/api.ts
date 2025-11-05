@@ -389,6 +389,17 @@ class ApiClient {
     throw new Error(response.data.message || 'Erro ao buscar estatísticas');
   }
 
+  async duplicateMonth(sourceMonth: string, targetMonth: string): Promise<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }> {
+    const response = await this.client.post<ApiResponse<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }>>(
+      `/api/transactions/duplicate-month/${sourceMonth}/${targetMonth}`
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao duplicar mês');
+  }
+
   // Métodos para cartões de crédito
   async getCreditCards(active?: boolean): Promise<CreditCard[]> {
     const response = await this.client.get<ApiResponse<CreditCard[]>>('/api/credit-cards', {

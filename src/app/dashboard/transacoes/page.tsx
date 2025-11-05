@@ -16,7 +16,7 @@ export default function TransacoesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
-  const {
+  const { 
     transactions,
     categories,
     loading,
@@ -28,7 +28,8 @@ export default function TransacoesPage() {
     updateTransaction,
     deleteTransaction,
     addCategory,
-    deleteCategory
+    deleteCategory,
+    duplicatePreviousMonth
   } = useFinanceData(userId);
 
   if (loading || !transactions) {
@@ -93,6 +94,23 @@ export default function TransacoesPage() {
             >
               <span className="sm:hidden">+ Adicionar</span>
               <span className="hidden sm:inline">+ Adicionar Transação</span>
+            </button>
+            <button
+              onClick={async () => {
+                if (window.confirm('Deseja duplicar todas as transações fixas e faturas de cartão do mês anterior para este mês?')) {
+                  try {
+                    await duplicatePreviousMonth(currentMonth);
+                    alert('Mês duplicado com sucesso!');
+                  } catch (error: any) {
+                    alert('Erro ao duplicar: ' + error.message);
+                  }
+                }
+              }}
+              disabled={saving}
+              className="btn btn-secondary px-3 py-2 text-sm sm:px-4 sm:text-base disabled:opacity-50"
+            >
+              <span className="sm:hidden">📋</span>
+              <span className="hidden sm:inline">{saving ? 'Duplicando...' : '📋 Duplicar Mês Anterior'}</span>
             </button>
             <button
               onClick={() => window.location.href = '/dashboard/cartoes'}

@@ -20,6 +20,7 @@ export default function CartoesPage() {
     categories,
     creditCards,
     loading, 
+    saving,
     currentMonth,
     setCurrentMonth, 
     getAvailableMonths,
@@ -27,7 +28,8 @@ export default function CartoesPage() {
     updateCreditCard,
     deleteCreditCard,
     addTransaction,
-    deleteTransaction
+    deleteTransaction,
+    duplicatePreviousMonth
   } = useFinanceData(userId);
 
   if (loading || !transactions) {
@@ -66,6 +68,23 @@ export default function CartoesPage() {
             ))}
           </select>
           <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (window.confirm('Deseja duplicar todas as transações fixas e faturas de cartão do mês anterior para este mês?')) {
+                  try {
+                    await duplicatePreviousMonth(currentMonth);
+                    alert('Mês duplicado com sucesso!');
+                  } catch (error: any) {
+                    alert('Erro ao duplicar: ' + error.message);
+                  }
+                }
+              }}
+              disabled={saving}
+              className="btn btn-secondary px-3 py-2 text-sm sm:px-4 sm:text-base disabled:opacity-50"
+            >
+              <span className="sm:hidden">📋</span>
+              <span className="hidden sm:inline">{saving ? 'Duplicando...' : '📋 Duplicar Mês Anterior'}</span>
+            </button>
             {activeTab === 'expenses' && (
               <button
                 onClick={() => setShowExpenseModal(true)}
