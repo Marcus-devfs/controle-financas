@@ -29,7 +29,7 @@ export default function TransacoesPage() {
     deleteTransaction,
     addCategory,
     deleteCategory,
-    duplicatePreviousMonth
+    duplicatePreviousTransactions
   } = useFinanceData(userId);
 
   if (loading || !transactions) {
@@ -97,9 +97,9 @@ export default function TransacoesPage() {
             </button>
             <button
               onClick={async () => {
-                if (window.confirm('Deseja duplicar todas as transações fixas e faturas de cartão do mês anterior para este mês?')) {
+                if (window.confirm('Deseja duplicar todas as transações fixas do mês anterior para este mês?')) {
                   try {
-                    await duplicatePreviousMonth(currentMonth);
+                    await duplicatePreviousTransactions(currentMonth);
                     alert('Mês duplicado com sucesso!');
                   } catch (error: any) {
                     alert('Erro ao duplicar: ' + error.message);

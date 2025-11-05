@@ -389,15 +389,26 @@ class ApiClient {
     throw new Error(response.data.message || 'Erro ao buscar estatísticas');
   }
 
-  async duplicateMonth(sourceMonth: string, targetMonth: string): Promise<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }> {
+  async duplicateTransactions(sourceMonth: string, targetMonth: string): Promise<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }> {
     const response = await this.client.post<ApiResponse<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }>>(
-      `/api/transactions/duplicate-month/${sourceMonth}/${targetMonth}`
+      `/api/transactions/duplicate-transactions/${sourceMonth}/${targetMonth}`
     );
 
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Erro ao duplicar mês');
+    throw new Error(response.data.message || 'Erro ao duplicar transações');
+  }
+
+  async duplicateCards(sourceMonth: string, targetMonth: string): Promise<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }> {
+    const response = await this.client.post<ApiResponse<{ sourceMonth: string; targetMonth: string; duplicatedCount: number }>>(
+      `/api/transactions/duplicate-cards/${sourceMonth}/${targetMonth}`
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao duplicar gastos de cartão');
   }
 
   // Métodos para cartões de crédito

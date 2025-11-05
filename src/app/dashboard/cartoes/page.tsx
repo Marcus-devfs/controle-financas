@@ -13,6 +13,7 @@ export default function CartoesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [activeTab, setActiveTab] = useState<'cards' | 'expenses'>('cards');
   
   const { 
@@ -28,8 +29,9 @@ export default function CartoesPage() {
     updateCreditCard,
     deleteCreditCard,
     addTransaction,
+    updateTransaction,
     deleteTransaction,
-    duplicatePreviousMonth
+    duplicatePreviousCards
   } = useFinanceData(userId);
 
   if (loading || !transactions) {
@@ -70,9 +72,9 @@ export default function CartoesPage() {
           <div className="flex gap-2">
             <button
               onClick={async () => {
-                if (window.confirm('Deseja duplicar todas as transações fixas e faturas de cartão do mês anterior para este mês?')) {
+                if (window.confirm('Deseja duplicar todos os gastos de cartão e faturas do mês anterior para este mês?')) {
                   try {
-                    await duplicatePreviousMonth(currentMonth);
+                    await duplicatePreviousCards(currentMonth);
                     alert('Mês duplicado com sucesso!');
                   } catch (error: any) {
                     alert('Erro ao duplicar: ' + error.message);
@@ -184,8 +186,7 @@ export default function CartoesPage() {
           currentMonthData={{ transactions, categories, creditCards }}
           creditCards={creditCards}
           onEditTransaction={(transaction) => {
-            // TODO: Implementar edição de transação
-            console.log('Editar transação:', transaction);
+            setEditingTransaction(transaction);
           }}
           onDeleteTransaction={(id) => {
             deleteTransaction(id);
@@ -225,6 +226,20 @@ export default function CartoesPage() {
             setShowExpenseModal(false);
           }}
           onClose={() => setShowExpenseModal(false)}
+        />
+      )}
+
+      {/* Modal de edição de gasto do cartão */}
+      {editingTransaction && (
+        <CardExpenseModal
+          transaction={editingTransaction}
+          cards={creditCards}
+          categories={categories.filter((cat: Category) => cat.type === 'expense')}
+          onSave={async (expense) => {
+            await updateTransaction(editingTransaction.id, expense);
+            setEditingTransaction(null);
+          }}
+          onClose={() => setEditingTransaction(null)}
         />
       )}
     </div>
@@ -478,41 +493,49 @@ function CreditCardModal({
 }
 
 function CardExpenseModal({
+  transaction,
   cards,
   categories,
   onSave,
   onClose
 }: {
+  transaction?: Transaction;
   cards: CreditCard[];
   categories: Category[];
   onSave: (expense: Omit<Transaction, 'id' | 'month'>) => void;
   onClose: () => void;
 }) {
   const [formData, setFormData] = useState({
-    description: '',
-    amount: 0,
-    date: new Date().toISOString().split('T')[0],
-    categoryId: '',
-    creditCardId: '',
-    isPaid: true,
-    isFixed: false,
-    isRecurring: false,
-    dayOfMonth: 1,
-    recurringRule: {
+    description: transaction?.description || '',
+    amount: transaction?.amount || 0,
+    date: transaction?.date || new Date().toISOString().split('T')[0],
+    categoryId: typeof transaction?.categoryId === 'object' 
+      ? (transaction.categoryId as any)._id 
+      : transaction?.categoryId || '',
+    creditCardId: typeof transaction?.creditCardId === 'object' 
+      ? (transaction.creditCardId as any)._id 
+      : transaction?.creditCardId || '',
+    isPaid: transaction?.isPaid !== undefined ? transaction.isPaid : true,
+    isFixed: transaction?.isFixed || false,
+    isRecurring: transaction?.isRecurring || false,
+    dayOfMonth: transaction?.dayOfMonth || 1,
+    recurringRule: transaction?.recurringRule || {
       id: '',
       type: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'yearly',
       interval: 1,
       endDate: '',
       maxOccurrences: undefined
     },
-    installmentInfo: {
+    installmentInfo: transaction?.installmentInfo || {
       totalInstallments: 1,
       currentInstallment: 1,
       installmentAmount: 0
     }
   });
 
-  const [amountDisplay, setAmountDisplay] = useState('');
+  const [amountDisplay, setAmountDisplay] = useState(
+    transaction ? formatCurrencyInput(transaction.amount) : ''
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -545,7 +568,7 @@ function CardExpenseModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in my-4">
         <h2 className="text-xl font-semibold mb-4">
-          💳 Lançar Gasto no Cartão
+          {transaction ? '✏️ Editar Gasto no Cartão' : '💳 Lançar Gasto no Cartão'}
         </h2>
         
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">

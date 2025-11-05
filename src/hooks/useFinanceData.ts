@@ -356,7 +356,7 @@ export function useFinanceData(userId: string) {
     }
   }, [userId]);
 
-  const duplicatePreviousMonth = useCallback(async (targetMonth: string) => {
+  const duplicatePreviousTransactions = useCallback(async (targetMonth: string) => {
     try {
       setError(null);
       setSaving(true);
@@ -367,12 +367,35 @@ export function useFinanceData(userId: string) {
       previousDate.setMonth(previousDate.getMonth() - 1);
       const sourceMonth = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}`;
       
-      await apiClient.duplicateMonth(sourceMonth, targetMonth);
+      await apiClient.duplicateTransactions(sourceMonth, targetMonth);
       
       // Recarregar dados do mês atual
       await loadMonthData(targetMonth);
     } catch (error: any) {
-      setError(error.message || 'Erro ao duplicar mês anterior');
+      setError(error.message || 'Erro ao duplicar transações do mês anterior');
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  }, [userId, loadMonthData]);
+
+  const duplicatePreviousCards = useCallback(async (targetMonth: string) => {
+    try {
+      setError(null);
+      setSaving(true);
+      
+      // Calcular mês anterior
+      const targetDate = new Date(targetMonth + '-01');
+      const previousDate = new Date(targetDate);
+      previousDate.setMonth(previousDate.getMonth() - 1);
+      const sourceMonth = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      await apiClient.duplicateCards(sourceMonth, targetMonth);
+      
+      // Recarregar dados do mês atual
+      await loadMonthData(targetMonth);
+    } catch (error: any) {
+      setError(error.message || 'Erro ao duplicar gastos de cartão do mês anterior');
       throw error;
     } finally {
       setSaving(false);
@@ -459,7 +482,8 @@ export function useFinanceData(userId: string) {
     deleteCreditCard: removeCreditCard,
     getAvailableMonths,
     getMonthData,
-    duplicatePreviousMonth,
+    duplicatePreviousTransactions,
+    duplicatePreviousCards,
     refreshData: () => loadMonthData(currentMonth)
   };
 }
