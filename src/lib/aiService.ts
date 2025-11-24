@@ -56,6 +56,10 @@ export interface BudgetGoalsAnalysis {
     savings: number; // porcentagem
   };
   generatedAt: string;
+  userPreferences?: {
+    targetSavings?: number; // Meta de economia mensal desejada
+    fixedCategories?: string[]; // IDs de categorias que não devem ser reduzidas
+  };
 }
 
 export interface FinancialData {
@@ -334,6 +338,106 @@ JSON OBRIGATÓRIO (sem texto extra):
     return openBraces !== closeBraces || openBrackets !== closeBrackets;
   }
 
+  private repairIncompleteBudgetGoalsJSON(jsonString: string): string {
+    try {
+      // Primeiro tentar o método padrão
+      let repaired = this.repairIncompleteJSON(jsonString);
+      
+      // Se ainda estiver incompleto, tentar fechar categoryGoals array
+      if (repaired.includes('"categoryGoals"') && !repaired.includes(']')) {
+        // Encontrar onde o array categoryGoals começa
+        const categoryGoalsMatch = repaired.match(/"categoryGoals"\s*:\s*\[/);
+        if (categoryGoalsMatch) {
+          const startPos = categoryGoalsMatch.index! + categoryGoalsMatch[0].length;
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+          let lastValidPos = startPos;
+          
+          for (let i = startPos; i < repaired.length; i++) {
+            const char = repaired[i];
+            
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') braceCount++;
+              if (char === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                  lastValidPos = i + 1;
+                }
+              }
+              if (char === ']' && braceCount === 0) {
+                // Array já está fechado
+                break;
+              }
+            }
+          }
+          
+          // Se não encontrou fechamento, adicionar
+          if (!repaired.substring(startPos).includes(']')) {
+            const beforeArray = repaired.substring(0, lastValidPos);
+            const afterArray = repaired.substring(lastValidPos);
+            // Remover vírgula final se houver
+            const cleanedBefore = beforeArray.replace(/,\s*$/, '');
+            repaired = cleanedBefore + ']' + (afterArray.trim() || '}');
+          }
+        }
+      }
+      
+      // Garantir que overallRecommendations está fechado
+      if (repaired.includes('"overallRecommendations"') && !repaired.includes('"overallRecommendations"') || !repaired.match(/"overallRecommendations"\s*:\s*\[[\s\S]*\]/)) {
+        const recMatch = repaired.match(/"overallRecommendations"\s*:\s*\[/);
+        if (recMatch && !repaired.substring(recMatch.index!).includes(']')) {
+          repaired = repaired.replace(/"overallRecommendations"\s*:\s*\[([^\]]*)$/, '"overallRecommendations": [$1]');
+        }
+      }
+      
+      // Garantir que idealBudgetBreakdown está fechado
+      if (repaired.includes('"idealBudgetBreakdown"') && !repaired.match(/"idealBudgetBreakdown"\s*:\s*\{[\s\S]*\}/)) {
+        const breakdownMatch = repaired.match(/"idealBudgetBreakdown"\s*:\s*\{/);
+        if (breakdownMatch) {
+          const afterBreakdown = repaired.substring(breakdownMatch.index! + breakdownMatch[0].length);
+          if (!afterBreakdown.includes('}')) {
+            // Adicionar valores padrão se não tiver
+            if (!afterBreakdown.match(/needs|wants|savings/)) {
+              repaired = repaired.replace(/"idealBudgetBreakdown"\s*:\s*\{[^}]*$/, '"idealBudgetBreakdown": {"needs": 55, "wants": 25, "savings": 20}');
+            } else {
+              // Fechar o objeto
+              repaired = repaired.replace(/"idealBudgetBreakdown"\s*:\s*\{([^}]*)$/, '"idealBudgetBreakdown": {$1}');
+            }
+          }
+        }
+      }
+      
+      // Fechar o objeto principal se necessário
+      const openBraces = (repaired.match(/\{/g) || []).length;
+      const closeBraces = (repaired.match(/\}/g) || []).length;
+      for (let i = 0; i < openBraces - closeBraces; i++) {
+        repaired += '}';
+      }
+      
+      console.log('🔧 JSON de metas reparado:', repaired.substring(0, 200) + '...');
+      return repaired;
+    } catch (error) {
+      console.error('❌ Erro ao reparar JSON de metas:', error);
+      return jsonString;
+    }
+  }
+
   private repairIncompleteJSON(jsonString: string): string {
     try {
       // Tentar reparar JSON incompleto
@@ -535,7 +639,10 @@ JSON OBRIGATÓRIO (sem texto extra):
   }
 
   // Método para gerar metas de orçamento baseado nos últimos 3 meses
-  async generateBudgetGoals(data: MultiMonthFinancialData): Promise<BudgetGoalsAnalysis> {
+  async generateBudgetGoals(
+    data: MultiMonthFinancialData,
+    preferences?: { targetSavings?: number; fixedCategories?: string[] }
+  ): Promise<BudgetGoalsAnalysis> {
     try {
       // Verificar se já existe análise de metas salva
       try {
@@ -556,13 +663,105 @@ JSON OBRIGATÓRIO (sem texto extra):
 
       console.log('🔑 API Key configurada, usando Gemini API para gerar metas');
 
+      // Calcular metas primeiro
+      const { calculatedGoals, hasDeficit, deficitAmount } = this.calculateBudgetGoals(data);
+      const { averageIncome, averageExpenses } = data;
+
+      // Aplicar preferências ANTES de calcular metas finais
+      let finalGoals = calculatedGoals;
+      if (preferences?.fixedCategories && preferences.fixedCategories.length > 0) {
+        // Ajustar metas considerando categorias fixas
+        finalGoals = this.adjustGoalsWithFixedCategories(
+          calculatedGoals,
+          averageIncome,
+          averageExpenses,
+          preferences.fixedCategories,
+          preferences.targetSavings
+        );
+      }
+
       const prompt = this.buildBudgetGoalsPrompt(data);
       console.log('📝 Prompt de metas gerado:', prompt.substring(0, 200) + '...');
-
-      const response = await this.callGeminiAPI(prompt);
-      console.log('🤖 Resposta da IA recebida:', response.substring(0, 200) + '...');
-
-      const goals = this.parseBudgetGoalsResponse(response, data);
+      
+      // Usar análise local com todas as categorias, mas melhorar summary e recomendações com IA
+      let goals: BudgetGoalsAnalysis;
+      
+      try {
+        const response = await this.callGeminiAPI(prompt);
+        console.log('🤖 Resposta da IA recebida:', response.substring(0, 200) + '...');
+        
+        // Parsear apenas summary e recomendações da IA
+        let cleanResponse = response.trim();
+        cleanResponse = cleanResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+        
+        let aiSummary = '';
+        let aiRecommendations: string[] = [];
+        
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            aiSummary = parsed.summary || '';
+            aiRecommendations = Array.isArray(parsed.overallRecommendations) ? parsed.overallRecommendations : [];
+          } catch (e) {
+            console.warn('⚠️ Erro ao parsear resposta da IA para summary, usando padrão');
+          }
+        }
+        
+        // Calcular totais finais
+        const expenseGoals = finalGoals.filter(g => g.categoryType === 'expense');
+        const totalGoalExpenses = expenseGoals.reduce((sum, g) => sum + g.recommendedGoal, 0);
+        const finalBalance = averageIncome - totalGoalExpenses;
+        
+        // Criar goals com todas as categorias calculadas localmente
+        goals = {
+          summary: aiSummary || `Receita média: R$ ${averageIncome.toFixed(2)} | Despesa média: R$ ${averageExpenses.toFixed(2)} | Com metas: R$ ${totalGoalExpenses.toFixed(2)} | Saldo projetado: R$ ${finalBalance.toFixed(2)}`,
+          averageMonthlyIncome: averageIncome,
+          averageMonthlyExpenses: averageExpenses,
+          categoryGoals: finalGoals,
+          overallRecommendations: aiRecommendations.length > 0 ? aiRecommendations : [
+            hasDeficit 
+              ? `Foco em redução de gastos para eliminar déficit de R$ ${deficitAmount.toFixed(2)}/mês`
+              : 'Mantenha gastos essenciais abaixo de 60% da receita',
+            'Reserve pelo menos 20% para poupança e investimentos',
+            'Revise e ajuste as metas mensalmente'
+          ],
+          idealBudgetBreakdown: {
+            needs: 55,
+            wants: 25,
+            savings: 20
+          },
+          generatedAt: new Date().toISOString(),
+          userPreferences: preferences
+        };
+      } catch (apiError) {
+        console.warn('⚠️ Erro ao chamar IA para summary, usando análise local completa');
+        // Se falhar, usar análise local completa
+        const expenseGoals = finalGoals.filter(g => g.categoryType === 'expense');
+        const totalGoalExpenses = expenseGoals.reduce((sum, g) => sum + g.recommendedGoal, 0);
+        const finalBalance = averageIncome - totalGoalExpenses;
+        
+        goals = {
+          summary: `Receita média: R$ ${averageIncome.toFixed(2)} | Despesa média: R$ ${averageExpenses.toFixed(2)} | Com metas: R$ ${totalGoalExpenses.toFixed(2)} | Saldo projetado: R$ ${finalBalance.toFixed(2)}`,
+          averageMonthlyIncome: averageIncome,
+          averageMonthlyExpenses: averageExpenses,
+          categoryGoals: finalGoals,
+          overallRecommendations: [
+            hasDeficit 
+              ? `Foco em redução de gastos para eliminar déficit de R$ ${deficitAmount.toFixed(2)}/mês`
+              : 'Mantenha gastos essenciais abaixo de 60% da receita',
+            'Reserve pelo menos 20% para poupança e investimentos',
+            'Revise e ajuste as metas mensalmente'
+          ],
+          idealBudgetBreakdown: {
+            needs: 55,
+            wants: 25,
+            savings: 20
+          },
+          generatedAt: new Date().toISOString(),
+          userPreferences: preferences
+        };
+      }
       
       // Salvar metas no banco de dados
       await this.saveBudgetGoalsToDatabase(goals);
@@ -571,7 +770,13 @@ JSON OBRIGATÓRIO (sem texto extra):
     } catch (error) {
       console.error('❌ Erro ao gerar metas de orçamento:', error);
       console.log('🔄 Usando análise local como fallback');
-      const localGoals = this.getLocalBudgetGoals(data);
+      let localGoals = this.getLocalBudgetGoals(data);
+      
+      // Aplicar preferências do usuário
+      if (preferences) {
+        localGoals = this.applyUserPreferences(localGoals, data, preferences);
+      }
+      
       try {
         await this.saveBudgetGoalsToDatabase(localGoals);
       } catch (saveError) {
@@ -581,7 +786,12 @@ JSON OBRIGATÓRIO (sem texto extra):
     }
   }
 
-  private buildBudgetGoalsPrompt(data: MultiMonthFinancialData): string {
+  // Método para calcular metas de orçamento
+  private calculateBudgetGoals(data: MultiMonthFinancialData): {
+    calculatedGoals: CategoryGoal[];
+    hasDeficit: boolean;
+    deficitAmount: number;
+  } {
     const { months, categories, averageIncome, averageExpenses } = data;
 
     // Preparar dados por categoria para os últimos 3 meses
@@ -647,25 +857,10 @@ JSON OBRIGATÓRIO (sem texto extra):
         : 0;
     });
 
-    // Preparar string de dados por categoria
-    const expenseCategories = Object.values(categoryData)
-      .filter(cat => cat.type === 'expense' && cat.average > 0)
-      .map(cat => {
-        const paymentMethod = cat.paymentMethods.card > cat.paymentMethods.cash ? 'cartão' : 'dinheiro';
-        return `${cat.name}: R$ ${cat.average.toFixed(2)}/mês (${paymentMethod})`;
-      })
-      .join(', ');
-
-    const incomeCategories = Object.values(categoryData)
-      .filter(cat => cat.type === 'income' && cat.average > 0)
-      .map(cat => `${cat.name}: R$ ${cat.average.toFixed(2)}/mês`)
-      .join(', ');
-
-    // Preparar lista de categorias com IDs para o prompt (limitado a 20 para evitar prompt muito longo)
+    // Preparar lista de TODAS as categorias com gastos (sem limite)
     const categoryList = Object.entries(categoryData)
       .filter(([_, cat]) => cat.average > 0)
       .sort(([_, a], [__, b]) => b.average - a.average) // Ordenar por maior gasto primeiro
-      .slice(0, 20) // Limitar a 20 categorias
       .map(([id, cat]) => {
         const paymentMethod = cat.paymentMethods.card > cat.paymentMethods.cash ? 'card' : cat.paymentMethods.cash > 0 ? 'cash' : 'both';
         return {
@@ -678,29 +873,165 @@ JSON OBRIGATÓRIO (sem texto extra):
         };
       });
 
-    const prompt = `Crie metas financeiras realistas. Receita: R$ ${averageIncome.toFixed(2)}/mês. Despesa: R$ ${averageExpenses.toFixed(2)}/mês.
+    // Verificar se há déficit
+    const currentBalance = averageIncome - averageExpenses;
+    const hasDeficit = currentBalance < 0;
+    const deficitAmount = Math.abs(currentBalance);
+    
+    // Calcular todas as metas considerando déficit e categorias fixas
+    const calculatedGoals = categoryList.map(c => {
+      const idealPct = c.type === 'expense' ? 
+        (c.name.toLowerCase().includes('moradia') || c.name.toLowerCase().includes('aluguel') || c.name.toLowerCase().includes('casa') ? 30 :
+         c.name.toLowerCase().includes('alimentação') || c.name.toLowerCase().includes('comida') || c.name.toLowerCase().includes('supermercado') || c.name.toLowerCase().includes('mercado') ? 15 :
+         c.name.toLowerCase().includes('transporte') || c.name.toLowerCase().includes('combustível') || c.name.toLowerCase().includes('uber') ? 12 :
+         c.name.toLowerCase().includes('saúde') || c.name.toLowerCase().includes('convênio') || c.name.toLowerCase().includes('plano') ? 8 :
+         c.name.toLowerCase().includes('contas') || c.name.toLowerCase().includes('luz') || c.name.toLowerCase().includes('água') ? 5 :
+         c.name.toLowerCase().includes('lazer') || c.name.toLowerCase().includes('entretenimento') ? 8 :
+         c.name.toLowerCase().includes('assinatura') || c.name.toLowerCase().includes('streaming') ? 5 :
+         c.name.toLowerCase().includes('compras') || c.name.toLowerCase().includes('roupa') ? 7 :
+         c.name.toLowerCase().includes('cuidados') || c.name.toLowerCase().includes('beleza') ? 5 : 8) : 0;
+      const idealAmount = (averageIncome * idealPct) / 100;
+      
+      let recommendedGoal = c.average;
+      
+      if (c.type === 'expense') {
+        // Se há déficit, SEMPRE focar em REDUÇÕES (nunca aumentar)
+        if (hasDeficit) {
+          // Se está muito acima do ideal, reduzir para o ideal
+          if (c.average > idealAmount * 1.2) {
+            recommendedGoal = idealAmount;
+          }
+          // Se está acima do ideal mas não muito, reduzir 20%
+          else if (c.average > idealAmount) {
+            recommendedGoal = c.average * 0.8; // Reduzir 20%
+          }
+          // Se está no ideal ou abaixo, reduzir 15% mesmo assim (para ajudar com déficit)
+          else {
+            recommendedGoal = c.average * 0.85; // Reduzir 15%
+          }
+        } else {
+          // Sem déficit: lógica normal
+          if (c.average > idealAmount * 1.2) {
+            recommendedGoal = idealAmount;
+          } else if (c.average <= idealAmount * 1.1) {
+            // Se está abaixo do ideal, pode manter ou aumentar um pouco
+            recommendedGoal = Math.min(c.average * 1.05, idealAmount * 1.1);
+          } else {
+            recommendedGoal = c.average * 0.9;
+          }
+        }
+      } else {
+        // Para receitas, sugerir aumento apenas se não houver déficit
+        recommendedGoal = hasDeficit ? c.average : c.average * 1.1;
+      }
+      
+      const diff = recommendedGoal - c.average;
+      const priority: 'low' | 'medium' | 'high' = c.type === 'expense' && parseFloat(c.pct) > idealPct * 1.5 ? 'high' :
+                       c.type === 'expense' && parseFloat(c.pct) > idealPct * 1.2 ? 'medium' : 'low';
+      
+      return {
+        categoryId: c.id,
+        categoryName: c.name,
+        categoryType: c.type,
+        currentAverage: c.average,
+        recommendedGoal: recommendedGoal,
+        percentageOfIncome: parseFloat(c.pct),
+        idealPercentage: idealPct,
+        difference: diff,
+        priority: priority,
+        reasoning: c.type === 'expense' 
+          ? (hasDeficit 
+              ? `Redução necessária para equilibrar orçamento. ${diff < 0 ? `Economia de R$ ${Math.abs(diff).toFixed(2)}.` : 'Manter próximo do atual.'}`
+              : (diff < 0 ? `Redução de R$ ${Math.abs(diff).toFixed(2)} para alinhar com padrão ideal.` : `Pode manter próximo do atual.`))
+          : `Aumento sugerido de ${((recommendedGoal / c.average - 1) * 100).toFixed(1)}%.`,
+        paymentMethod: c.paymentMethod as 'card' | 'cash' | 'both' | undefined
+      };
+    });
 
-Categorias (${categoryList.length}):
-${categoryList.map(c => `${c.name}(${c.type}): R$ ${c.average.toFixed(2)} (${c.pct}%) [ID:${c.id}]`).join('; ')}
+    return {
+      calculatedGoals,
+      hasDeficit,
+      deficitAmount
+    };
+  }
 
-Padrões ideais: Moradia 30%, Alimentação 15%, Transporte 12%, Saúde 8%, Contas 5%, Lazer 8%, Outros 8%.
+  private buildBudgetGoalsPrompt(data: MultiMonthFinancialData): string {
+    const { months, categories, averageIncome, averageExpenses } = data;
 
-Para cada categoria de DESPESA:
-- Se gasto > ideal*1.2: meta = ideal (reduzir)
-- Se gasto < ideal*1.1: meta = min(atual*1.05, ideal*1.1) (pode aumentar um pouco)
-- Senão: meta = atual*0.9 (reduzir 10%)
-- Prioridade: high se > ideal*1.5, medium se > ideal*1.2, low senão
+    // Preparar dados por categoria para os últimos 3 meses (versão simplificada para o prompt)
+    const categoryData: Record<string, {
+      name: string;
+      type: 'income' | 'expense' | 'investment';
+      monthlyTotals: number[];
+      average: number;
+      paymentMethods: { card: number; cash: number };
+    }> = {};
 
-Para RECEITAS: meta = atual*1.1 (aumentar 10%)
+    categories.forEach(category => {
+      categoryData[category.id] = {
+        name: category.name,
+        type: category.type,
+        monthlyTotals: [],
+        average: 0,
+        paymentMethods: { card: 0, cash: 0 }
+      };
+    });
 
-Retorne JSON válido (sem markdown):
+    // Calcular totais por categoria para cada mês
+    months.forEach((monthData) => {
+      const categoryTotals: Record<string, number> = {};
+
+      monthData.transactions.forEach(transaction => {
+        const categoryId = typeof transaction.categoryId === 'object' 
+          ? (transaction.categoryId as any)._id 
+          : transaction.categoryId;
+        
+        if (!categoryTotals[categoryId]) {
+          categoryTotals[categoryId] = 0;
+        }
+
+        categoryTotals[categoryId] += transaction.amount;
+      });
+
+      // Adicionar totais ao histórico da categoria
+      Object.keys(categoryData).forEach(catId => {
+        const total = categoryTotals[catId] || 0;
+        categoryData[catId].monthlyTotals.push(total);
+      });
+    });
+
+    // Calcular médias
+    Object.keys(categoryData).forEach(catId => {
+      const totals = categoryData[catId].monthlyTotals;
+      categoryData[catId].average = totals.length > 0 
+        ? totals.reduce((sum, val) => sum + val, 0) / totals.length 
+        : 0;
+    });
+
+    // Preparar lista de categorias para o prompt
+    const categoryList = Object.entries(categoryData)
+      .filter(([_, cat]) => cat.average > 0)
+      .map(([id, cat]) => ({
+        id,
+        name: cat.name,
+        type: cat.type,
+        average: cat.average,
+        pct: averageIncome > 0 ? ((cat.average / averageIncome) * 100).toFixed(1) : '0'
+      }));
+
+    // Como já calculamos tudo, vamos usar análise local diretamente
+    // Mas ainda podemos pedir à IA para melhorar o summary e recomendações
+    const prompt = `Analise estes dados financeiros e retorne APENAS um JSON válido com summary e recomendações melhoradas:
+
+Receita: R$ ${averageIncome.toFixed(2)}/mês. Despesa: R$ ${averageExpenses.toFixed(2)}/mês. Saldo: R$ ${(averageIncome - averageExpenses).toFixed(2)}/mês.
+
+Categorias de despesas (${categoryList.filter(c => c.type === 'expense').length}):
+${categoryList.filter(c => c.type === 'expense').map(c => `${c.name}: R$ ${c.average.toFixed(2)} (${c.pct}%)`).join(', ')}
+
+JSON (sem markdown):
 {
-  "summary": "Resumo em 2 frases",
-  "averageMonthlyIncome": ${averageIncome},
-  "averageMonthlyExpenses": ${averageExpenses},
-  "categoryGoals": [${categoryList.map(c => `{"categoryId":"${c.id}","categoryName":"${c.name}","categoryType":"${c.type}","currentAverage":${c.average},"recommendedGoal":CALCULE,"percentageOfIncome":${c.pct},"idealPercentage":DEFINA,"difference":CALCULE,"priority":"DEFINA","reasoning":"Explicação curta","paymentMethod":"${c.paymentMethod}"}`).join(',')}],
-  "overallRecommendations": ["Rec 1", "Rec 2"],
-  "idealBudgetBreakdown": {"needs":55,"wants":25,"savings":20}
+  "summary": "Resumo em 2-3 frases sobre a situação financeira",
+  "overallRecommendations": ["Recomendação 1", "Recomendação 2", "Recomendação 3"]
 }`;
 
     return prompt;
@@ -713,17 +1044,30 @@ Retorne JSON válido (sem markdown):
       let cleanResponse = response.trim();
       cleanResponse = cleanResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
 
-      const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+      // Tentar encontrar JSON - usar modo não-guloso para pegar o primeiro JSON completo
+      let jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        // Tentar encontrar JSON mesmo que incompleto
+        jsonMatch = cleanResponse.match(/\{[\s\S]*/);
+      }
+      
       if (jsonMatch) {
         let jsonString = jsonMatch[0];
 
         const isIncomplete = this.isJSONIncomplete(jsonString);
         if (isIncomplete) {
           console.warn('⚠️ JSON parece estar incompleto, tentando reparar...');
-          jsonString = this.repairIncompleteJSON(jsonString);
+          jsonString = this.repairIncompleteBudgetGoalsJSON(jsonString);
         }
 
-        const parsed = JSON.parse(jsonString);
+        let parsed;
+        try {
+          parsed = JSON.parse(jsonString);
+        } catch (parseError) {
+          console.error('❌ Erro ao fazer parse do JSON reparado:', parseError);
+          console.log('📝 JSON que falhou:', jsonString.substring(0, 500));
+          throw parseError;
+        }
 
         const goals: BudgetGoalsAnalysis = {
           summary: parsed.summary || 'Metas de orçamento geradas com sucesso',
@@ -768,6 +1112,11 @@ Retorne JSON válido (sem markdown):
   private getLocalBudgetGoals(data: MultiMonthFinancialData): BudgetGoalsAnalysis {
     const { months, categories, averageIncome, averageExpenses } = data;
 
+    // Verificar se há déficit
+    const currentBalance = averageIncome - averageExpenses;
+    const hasDeficit = currentBalance < 0;
+    const deficitAmount = Math.abs(currentBalance);
+
     // Calcular médias por categoria
     const categoryAverages: Record<string, number> = {};
     
@@ -788,7 +1137,7 @@ Retorne JSON válido (sem markdown):
     });
 
     // Mapeamento mais detalhado de categorias para porcentagens ideais
-    const getIdealPercentage = (categoryName: string, categoryType: string): number => {
+    const getIdealPercentage = (categoryName: string, categoryType: string, categoryId: string): number => {
       if (categoryType !== 'expense') return 0;
       
       const name = categoryName.toLowerCase();
@@ -827,7 +1176,8 @@ Retorne JSON válido (sem markdown):
       // Se não se encaixar em nenhuma, usar porcentagem baseada no gasto atual
       // Se está gastando muito (>15% da receita), meta é reduzir para 10%
       // Se está gastando pouco (<5% da receita), manter próximo do atual
-      const currentPct = averageIncome > 0 ? (categoryAverages[category.id] / averageIncome) * 100 : 0;
+      const currentAvg = categoryAverages[categoryId] || 0;
+      const currentPct = averageIncome > 0 ? (currentAvg / averageIncome) * 100 : 0;
       if (currentPct > 15) return 10;
       if (currentPct < 5) return Math.max(currentPct * 1.1, 3); // Aumentar um pouco se muito baixo
       return 8; // Padrão para outras categorias
@@ -841,29 +1191,41 @@ Retorne JSON válido (sem markdown):
         
         // Definir porcentagem ideal baseada na categoria
         const idealPercentage = category.type === 'expense' 
-          ? getIdealPercentage(category.name, category.type)
+          ? getIdealPercentage(category.name, category.type, category.id)
           : 0;
 
-        // Para despesas: se está acima do ideal, reduzir. Se está abaixo, pode aumentar um pouco mas não muito
+        // Para despesas: considerar déficit para focar em reduções
         let recommendedGoal: number;
         if (category.type === 'expense') {
           const idealAmount = averageIncome > 0 ? (averageIncome * idealPercentage) / 100 : 0;
           
-          // Se o gasto atual está muito acima do ideal, meta é reduzir para o ideal
-          if (currentAvg > idealAmount * 1.2) {
-            recommendedGoal = idealAmount;
-          } 
-          // Se está próximo ou abaixo do ideal, manter próximo do atual (não forçar redução desnecessária)
-          else if (currentAvg <= idealAmount * 1.1) {
-            recommendedGoal = Math.min(currentAvg * 1.05, idealAmount * 1.1); // Pode aumentar até 5% ou 10% acima do ideal
-          }
-          // Se está um pouco acima, reduzir gradualmente
-          else {
-            recommendedGoal = currentAvg * 0.9; // Reduzir 10%
+          // Se há déficit, SEMPRE focar em REDUÇÕES
+          if (hasDeficit) {
+            // Se está muito acima do ideal, reduzir para o ideal
+            if (currentAvg > idealAmount * 1.2) {
+              recommendedGoal = idealAmount;
+            }
+            // Se está acima do ideal mas não muito, reduzir 20%
+            else if (currentAvg > idealAmount) {
+              recommendedGoal = currentAvg * 0.8; // Reduzir 20%
+            }
+            // Se está no ideal ou abaixo, reduzir 15% mesmo assim (para ajudar com déficit)
+            else {
+              recommendedGoal = currentAvg * 0.85; // Reduzir 15%
+            }
+          } else {
+            // Sem déficit: lógica normal
+            if (currentAvg > idealAmount * 1.2) {
+              recommendedGoal = idealAmount;
+            } else if (currentAvg <= idealAmount * 1.1) {
+              recommendedGoal = Math.min(currentAvg * 1.05, idealAmount * 1.1);
+            } else {
+              recommendedGoal = currentAvg * 0.9;
+            }
           }
         } else {
-          // Para receitas, sugerir aumento de 10%
-          recommendedGoal = currentAvg * 1.1;
+          // Para receitas, sugerir aumento apenas se não houver déficit
+          recommendedGoal = hasDeficit ? currentAvg : currentAvg * 1.1;
         }
         
         const difference = recommendedGoal - currentAvg;
@@ -913,7 +1275,9 @@ Retorne JSON válido (sem markdown):
           difference,
           priority,
           reasoning: category.type === 'expense'
-            ? `Gasto atual de ${percentage.toFixed(1)}% da receita. Meta ideal é ${idealPercentage}% (R$ ${((averageIncome * idealPercentage) / 100).toFixed(2)}). ${difference < 0 ? `Redução de R$ ${Math.abs(difference).toFixed(2)} necessária.` : `Pode manter próximo do atual.`}`
+            ? hasDeficit
+              ? `Redução necessária para equilibrar orçamento. ${difference < 0 ? `Economia de R$ ${Math.abs(difference).toFixed(2)}.` : 'Manter próximo do atual.'}`
+              : `Gasto atual de ${percentage.toFixed(1)}% da receita. Meta ideal é ${idealPercentage}% (R$ ${((averageIncome * idealPercentage) / 100).toFixed(2)}). ${difference < 0 ? `Redução de R$ ${Math.abs(difference).toFixed(2)} para alinhar com padrão ideal.` : `Pode manter próximo do atual.`}`
             : `Receita atual de R$ ${currentAvg.toFixed(2)}. Meta sugerida de R$ ${recommendedGoal.toFixed(2)} para aumentar em ${((recommendedGoal / currentAvg - 1) * 100).toFixed(1)}%.`,
           paymentMethod
         };
@@ -925,25 +1289,225 @@ Retorne JSON válido (sem markdown):
           return priorityOrder[b.priority] - priorityOrder[a.priority];
         }
         return Math.abs(b.difference) - Math.abs(a.difference);
-      })
-      .slice(0, 20); // Limitar a 20 categorias mais relevantes
+      }); // Incluir TODAS as categorias, sem limite
+
+    // Calcular totais finais
+    const expenseGoalsFinal = categoryGoals.filter(g => g.categoryType === 'expense');
+    const totalGoalExpenses = expenseGoalsFinal.reduce((sum, g) => sum + g.recommendedGoal, 0);
+    const finalBalance = averageIncome - totalGoalExpenses;
 
     return {
-      summary: `Receita média: R$ ${averageIncome.toFixed(2)} | Despesa média: R$ ${averageExpenses.toFixed(2)} | Metas criadas para ${categoryGoals.length} categorias`,
+      summary: hasDeficit
+        ? `Déficit atual: R$ ${deficitAmount.toFixed(2)}/mês. Com as metas, despesas seriam R$ ${totalGoalExpenses.toFixed(2)}/mês, resultando em saldo de R$ ${finalBalance.toFixed(2)}/mês.`
+        : `Receita média: R$ ${averageIncome.toFixed(2)} | Despesa média: R$ ${averageExpenses.toFixed(2)} | Com metas: R$ ${totalGoalExpenses.toFixed(2)} | Saldo projetado: R$ ${finalBalance.toFixed(2)}`,
       averageMonthlyIncome: averageIncome,
       averageMonthlyExpenses: averageExpenses,
       categoryGoals,
-      overallRecommendations: [
-        'Mantenha gastos essenciais abaixo de 60% da receita',
-        'Reserve pelo menos 20% para poupança e investimentos',
-        'Revise e ajuste as metas mensalmente'
-      ],
+      overallRecommendations: hasDeficit
+        ? [
+            `Foco em redução de gastos para eliminar déficit de R$ ${deficitAmount.toFixed(2)}/mês`,
+            'Priorize reduções em categorias não essenciais',
+            'Revise e ajuste as metas mensalmente'
+          ]
+        : [
+            'Mantenha gastos essenciais abaixo de 60% da receita',
+            'Reserve pelo menos 20% para poupança e investimentos',
+            'Revise e ajuste as metas mensalmente'
+          ],
       idealBudgetBreakdown: {
         needs: 55,
         wants: 25,
         savings: 20
       },
       generatedAt: new Date().toISOString()
+    };
+  }
+
+  // Método para ajustar metas considerando categorias fixas
+  private adjustGoalsWithFixedCategories(
+    goals: CategoryGoal[],
+    averageIncome: number,
+    averageExpenses: number,
+    fixedCategories: string[],
+    targetSavings?: number
+  ): CategoryGoal[] {
+    const expenseGoals = goals.filter(g => g.categoryType === 'expense');
+    const fixedGoals = expenseGoals.filter(g => fixedCategories.includes(g.categoryId));
+    const variableGoals = expenseGoals.filter(g => !fixedCategories.includes(g.categoryId));
+    
+    // Calcular totais
+    const totalFixed = fixedGoals.reduce((sum, g) => sum + g.currentAverage, 0);
+    const totalVariableCurrent = variableGoals.reduce((sum, g) => sum + g.currentAverage, 0);
+    const totalCurrent = totalFixed + totalVariableCurrent;
+    
+    // Determinar meta de despesas totais
+    let targetTotalExpenses: number;
+    if (targetSavings && targetSavings > 0) {
+      targetTotalExpenses = totalCurrent - targetSavings;
+    } else {
+      // Se não tem meta de economia, calcular para equilibrar ou ter saldo positivo
+      const currentBalance = averageIncome - totalCurrent;
+      if (currentBalance < 0) {
+        // Há déficit: reduzir despesas para ter pelo menos saldo zero
+        targetTotalExpenses = averageIncome * 0.95; // 95% da receita (deixar 5% de margem)
+      } else {
+        // Sem déficit: manter despesas em 90% da receita (10% de margem)
+        targetTotalExpenses = averageIncome * 0.90;
+      }
+    }
+    
+    // Proteger categorias fixas (máximo 5% de redução)
+    const protectedFixedTotal = fixedGoals.reduce((sum, g) => sum + Math.max(g.currentAverage * 0.95, g.recommendedGoal), 0);
+    const targetVariableExpenses = Math.max(0, targetTotalExpenses - protectedFixedTotal);
+    
+    // Se não há espaço suficiente nas variáveis, ajustar
+    if (targetVariableExpenses < totalVariableCurrent * 0.5) {
+      // Muito difícil atingir, ajustar meta
+      const minVariable = totalVariableCurrent * 0.7; // Redução máxima de 30% nas variáveis
+      targetTotalExpenses = protectedFixedTotal + minVariable;
+    }
+    
+    // Calcular fator de redução para categorias variáveis
+    const totalVariableRecommended = variableGoals.reduce((sum, g) => sum + g.recommendedGoal, 0);
+    const reductionFactor = totalVariableRecommended > 0 
+      ? targetVariableExpenses / totalVariableRecommended 
+      : 1;
+    
+    // Aplicar ajustes
+    return goals.map(goal => {
+      if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+        // Categoria fixa: proteger (máximo 5% de redução)
+        return {
+          ...goal,
+          recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
+          difference: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal) - goal.currentAverage,
+          reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+          priority: 'low' as const
+        };
+      } else if (goal.categoryType === 'expense' && variableGoals.some(vg => vg.categoryId === goal.categoryId)) {
+        // Categoria variável: aplicar redução proporcional
+        const newGoal = goal.recommendedGoal * reductionFactor;
+        return {
+          ...goal,
+          recommendedGoal: Math.max(0, newGoal),
+          difference: Math.max(0, newGoal) - goal.currentAverage,
+          percentageOfIncome: (Math.max(0, newGoal) / averageIncome) * 100,
+          reasoning: `Ajustado para equilibrar orçamento. ${goal.reasoning}`
+        };
+      }
+      return goal;
+    });
+  }
+
+  // Método para aplicar preferências do usuário e recalcular metas
+  private applyUserPreferences(
+    goals: BudgetGoalsAnalysis,
+    data: MultiMonthFinancialData,
+    preferences: { targetSavings?: number; fixedCategories?: string[] }
+  ): BudgetGoalsAnalysis {
+    const { targetSavings, fixedCategories = [] } = preferences;
+    const expenseGoals = goals.categoryGoals.filter(g => g.categoryType === 'expense');
+    
+    // Separar categorias fixas e variáveis
+    const fixedGoals = expenseGoals.filter(g => fixedCategories.includes(g.categoryId));
+    const variableGoals = expenseGoals.filter(g => !fixedCategories.includes(g.categoryId));
+    
+    // Calcular totais
+    const totalFixed = fixedGoals.reduce((sum, g) => sum + g.currentAverage, 0);
+    const totalVariableCurrent = variableGoals.reduce((sum, g) => sum + g.currentAverage, 0);
+    const totalCurrent = totalFixed + totalVariableCurrent;
+    
+    // Se não tem meta de economia, apenas proteger categorias fixas
+    if (!targetSavings || targetSavings <= 0) {
+      const updatedGoals = goals.categoryGoals.map(goal => {
+        if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+          // Categoria fixa: manter próximo do atual (máximo 5% de redução)
+          return {
+            ...goal,
+            recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
+            reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+            priority: 'low' as const
+          };
+        }
+        return goal;
+      });
+      
+      return {
+        ...goals,
+        categoryGoals: updatedGoals,
+        userPreferences: preferences
+      };
+    }
+    
+    // Calcular meta de economia
+    const targetTotalExpenses = totalCurrent - targetSavings;
+    const targetVariableExpenses = targetTotalExpenses - totalFixed;
+    
+    // Se a meta é impossível (fixas já ultrapassam o limite)
+    if (targetVariableExpenses < 0) {
+      console.warn('⚠️ Meta de economia muito alta. Categorias fixas já ultrapassam o limite.');
+      // Ajustar para o mínimo possível
+      const minPossible = totalFixed * 1.05; // Fixas + 5% de margem
+      const adjustedSavings = totalCurrent - minPossible;
+      
+      return {
+        ...goals,
+        summary: `${goals.summary} Meta de economia ajustada para R$ ${adjustedSavings.toFixed(2)}/mês devido às categorias essenciais.`,
+        categoryGoals: goals.categoryGoals.map(goal => {
+          if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+            return {
+              ...goal,
+              recommendedGoal: goal.currentAverage * 0.95,
+              reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+              priority: 'low' as const
+            };
+          }
+          // Variáveis: reduzir proporcionalmente
+          const reductionFactor = minPossible / totalCurrent;
+          return {
+            ...goal,
+            recommendedGoal: goal.currentAverage * reductionFactor,
+            difference: (goal.currentAverage * reductionFactor) - goal.currentAverage,
+            reasoning: `Ajustado para atingir economia de R$ ${adjustedSavings.toFixed(2)}/mês. ${goal.reasoning}`
+          };
+        }),
+        userPreferences: { ...preferences, targetSavings: adjustedSavings }
+      };
+    }
+    
+    // Calcular fator de redução proporcional para categorias variáveis
+    const reductionFactor = targetVariableExpenses / totalVariableCurrent;
+    
+    // Recalcular metas
+    const updatedGoals = goals.categoryGoals.map(goal => {
+      if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+        // Categoria fixa: manter próximo do atual (máximo 5% de redução)
+        return {
+          ...goal,
+          recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
+          difference: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal) - goal.currentAverage,
+          reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+          priority: 'low' as const
+        };
+      } else if (goal.categoryType === 'expense' && variableGoals.some(vg => vg.categoryId === goal.categoryId)) {
+        // Categoria variável: aplicar redução proporcional
+        const newGoal = goal.currentAverage * reductionFactor;
+        return {
+          ...goal,
+          recommendedGoal: newGoal,
+          difference: newGoal - goal.currentAverage,
+          percentageOfIncome: (newGoal / goals.averageMonthlyIncome) * 100,
+          reasoning: `Ajustado para atingir economia de R$ ${targetSavings.toFixed(2)}/mês. ${goal.reasoning}`
+        };
+      }
+      return goal;
+    });
+    
+    return {
+      ...goals,
+      summary: `${goals.summary} Meta de economia: R$ ${targetSavings.toFixed(2)}/mês.`,
+      categoryGoals: updatedGoals,
+      userPreferences: preferences
     };
   }
 

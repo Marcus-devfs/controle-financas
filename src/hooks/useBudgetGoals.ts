@@ -114,7 +114,7 @@ export function useBudgetGoals() {
   }, [userId]);
 
   // Gerar metas
-  const generateGoals = useCallback(async () => {
+  const generateGoals = useCallback(async (preferences?: { targetSavings?: number; fixedCategories?: string[] }) => {
     setLoading(true);
     setError(null);
 
@@ -124,7 +124,7 @@ export function useBudgetGoals() {
         throw new Error('Não foi possível carregar dados dos últimos 3 meses');
       }
 
-      const result = await aiService.generateBudgetGoals(data);
+      const result = await aiService.generateBudgetGoals(data, preferences);
       setGoals(result);
       setHasExistingGoals(true);
       return result;
@@ -190,7 +190,8 @@ export function useBudgetGoals() {
     generateGoals,
     checkExistingGoals,
     loadExistingGoals,
-    deleteGoals
+    deleteGoals,
+    getLast3MonthsData
   };
 }
 

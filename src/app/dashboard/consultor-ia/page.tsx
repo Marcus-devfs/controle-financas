@@ -3,7 +3,7 @@
 import { useBudgetGoals } from "@/hooks/useBudgetGoals";
 import { formatCurrency } from "@/lib/data";
 import { useState, useEffect } from "react";
-import { CategoryGoal, BudgetGoalsAnalysis } from "@/lib/aiService";
+import { CategoryGoal, BudgetGoalsAnalysis, aiService } from "@/lib/aiService";
 
 export default function ConsultorIAPage() {
   const {
@@ -14,24 +14,127 @@ export default function ConsultorIAPage() {
     generateGoals,
     checkExistingGoals,
     loadExistingGoals,
-    deleteGoals
+    deleteGoals,
+    getLast3MonthsData
   } = useBudgetGoals();
 
+  const [goalsState, setGoalsState] = useState(goals);
+  
+  useEffect(() => {
+    setGoalsState(goals);
+  }, [goals]);
+
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [targetSavings, setTargetSavings] = useState<number | undefined>(undefined);
+  const [fixedCategories, setFixedCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<{id: string; name: string; average: number}[]>([]);
 
   useEffect(() => {
     checkExistingGoals();
   }, [checkExistingGoals]);
 
+  // Carregar preferências salvas quando metas são carregadas
+  useEffect(() => {
+    if (goals?.userPreferences) {
+      setTargetSavings(goals.userPreferences.targetSavings);
+      setFixedCategories(goals.userPreferences.fixedCategories || []);
+    }
+  }, [goals]);
+
   const handleGenerateGoals = async () => {
+    // Carregar categorias antes de mostrar modal
     setIsGenerating(true);
     try {
-      await generateGoals();
+      const data = await getLast3MonthsData();
+      if (!data) {
+        throw new Error('Não foi possível carregar dados dos últimos 3 meses');
+      }
+
+      // Preparar lista de categorias para o modal
+      const categoryAverages: Record<string, number> = {};
+      data.categories.forEach(category => {
+        const totals: number[] = [];
+        data.months.forEach(monthData => {
+          const monthTotal = monthData.transactions
+            .filter(t => {
+              const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+              return categoryId === category.id;
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
+          totals.push(monthTotal);
+        });
+        categoryAverages[category.id] = totals.length > 0 
+          ? totals.reduce((sum, val) => sum + val, 0) / totals.length 
+          : 0;
+      });
+
+      const expenseCategories = data.categories
+        .filter(cat => cat.type === 'expense' && categoryAverages[cat.id] > 0)
+        .map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          average: categoryAverages[cat.id]
+        }))
+        .sort((a, b) => b.average - a.average);
+
+      setAvailableCategories(expenseCategories);
+      setShowConfigModal(true);
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateWithConfig = async () => {
+    setIsGenerating(true);
+    try {
+      const preferences = {
+        targetSavings: targetSavings || undefined,
+        fixedCategories: fixedCategories
+      };
+      
+      await generateGoals(preferences);
+      setShowConfigModal(false);
     } catch (err) {
       console.error('Erro ao gerar metas:', err);
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleRecalculateWithPreferences = async () => {
+    if (!goals) return;
+    
+    setIsGenerating(true);
+    try {
+      // Buscar dados novamente para recalcular
+      const data = await getLast3MonthsData();
+      if (!data) {
+        throw new Error('Não foi possível carregar dados dos últimos 3 meses');
+      }
+
+      const preferences = {
+        targetSavings: targetSavings || undefined,
+        fixedCategories: fixedCategories
+      };
+
+      const result = await generateGoals(preferences);
+      setShowConfigModal(false);
+    } catch (err) {
+      console.error('Erro ao recalcular metas:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const toggleFixedCategory = (categoryId: string) => {
+    setFixedCategories(prev => 
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   const handleLoadExisting = async () => {
@@ -106,6 +209,14 @@ export default function ConsultorIAPage() {
             >
               {hasExistingGoals ? 'Regenerar Metas' : 'Gerar Metas'}
             </button>
+            {goalsState && (
+              <button
+                onClick={() => setShowConfigModal(true)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                ⚙️ Configurar
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -136,28 +247,48 @@ export default function ConsultorIAPage() {
         </div>
       )}
 
-      {goals && (
+      {goalsState && (
         <div className="space-y-6">
           {/* Resumo */}
-          <SummaryCard goals={goals} />
+          <SummaryCard goals={goalsState} />
 
           {/* Breakdown Ideal */}
-          <BudgetBreakdownCard goals={goals} />
+          <BudgetBreakdownCard goals={goalsState} />
 
           {/* Tabela de Metas */}
-          <GoalsTable goals={goals} />
+          <GoalsTable goals={goalsState} />
 
           {/* Metas por Categoria */}
-          <CategoryGoalsList goals={goals} />
+          <CategoryGoalsList 
+            goals={goalsState} 
+            fixedCategories={fixedCategories}
+            onToggleFixed={toggleFixedCategory}
+          />
 
           {/* Resumo Final - Economia */}
-          <SavingsSummaryCard goals={goals} />
+          <SavingsSummaryCard goals={goalsState} />
 
           {/* Recomendações Gerais */}
-          {goals.overallRecommendations && goals.overallRecommendations.length > 0 && (
-            <RecommendationsCard recommendations={goals.overallRecommendations} />
+          {goalsState.overallRecommendations && goalsState.overallRecommendations.length > 0 && (
+            <RecommendationsCard recommendations={goalsState.overallRecommendations} />
           )}
         </div>
+      )}
+
+      {/* Modal de Configuração */}
+      {showConfigModal && (
+        <GoalsConfigModal
+          goals={goalsState}
+          availableCategories={availableCategories}
+          targetSavings={targetSavings}
+          fixedCategories={fixedCategories}
+          onTargetSavingsChange={setTargetSavings}
+          onFixedCategoriesChange={setFixedCategories}
+          onGenerate={handleGenerateWithConfig}
+          onRecalculate={goalsState ? handleRecalculateWithPreferences : undefined}
+          onClose={() => setShowConfigModal(false)}
+          loading={isGenerating}
+        />
       )}
     </div>
   );
@@ -252,7 +383,15 @@ function BudgetBar({
   );
 }
 
-function CategoryGoalsList({ goals }: { goals: BudgetGoalsAnalysis }) {
+function CategoryGoalsList({ 
+  goals, 
+  fixedCategories = [],
+  onToggleFixed 
+}: { 
+  goals: BudgetGoalsAnalysis;
+  fixedCategories?: string[];
+  onToggleFixed?: (categoryId: string) => void;
+}) {
   const expenseGoals = goals.categoryGoals.filter(g => g.categoryType === 'expense');
   const incomeGoals = goals.categoryGoals.filter(g => g.categoryType === 'income');
 
@@ -264,7 +403,12 @@ function CategoryGoalsList({ goals }: { goals: BudgetGoalsAnalysis }) {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Metas de Despesas por Categoria</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {expenseGoals.map((goal, index) => (
-              <CategoryGoalCard key={goal.categoryId || index} goal={goal} />
+              <CategoryGoalCard 
+                key={goal.categoryId || index} 
+                goal={goal}
+                isFixed={fixedCategories.includes(goal.categoryId)}
+                onToggleFixed={onToggleFixed ? () => onToggleFixed(goal.categoryId) : undefined}
+              />
             ))}
           </div>
         </div>
@@ -285,7 +429,15 @@ function CategoryGoalsList({ goals }: { goals: BudgetGoalsAnalysis }) {
   );
 }
 
-function CategoryGoalCard({ goal }: { goal: CategoryGoal }) {
+function CategoryGoalCard({ 
+  goal, 
+  isFixed = false,
+  onToggleFixed 
+}: { 
+  goal: CategoryGoal;
+  isFixed?: boolean;
+  onToggleFixed?: () => void;
+}) {
   const isExpense = goal.categoryType === 'expense';
   const isPositive = goal.difference >= 0;
   const progress = goal.currentAverage > 0
@@ -567,6 +719,201 @@ function RecommendationsCard({ recommendations }: { recommendations: string[] })
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function GoalsConfigModal({
+  goals,
+  availableCategories,
+  targetSavings,
+  fixedCategories,
+  onTargetSavingsChange,
+  onFixedCategoriesChange,
+  onGenerate,
+  onRecalculate,
+  onClose,
+  loading
+}: {
+  goals: BudgetGoalsAnalysis | null;
+  availableCategories: {id: string; name: string; average: number}[];
+  targetSavings: number | undefined;
+  fixedCategories: string[];
+  onTargetSavingsChange: (value: number | undefined) => void;
+  onFixedCategoriesChange: (categories: string[]) => void;
+  onGenerate: () => void;
+  onRecalculate?: () => void;
+  onClose: () => void;
+  loading: boolean;
+}) {
+  const [localTargetSavings, setLocalTargetSavings] = useState<string>(
+    targetSavings ? targetSavings.toFixed(2) : ''
+  );
+  const [localFixedCategories, setLocalFixedCategories] = useState<string[]>(fixedCategories);
+
+  // Usar goals se disponível, senão usar availableCategories
+  const expenseGoals = goals 
+    ? goals.categoryGoals.filter(g => g.categoryType === 'expense')
+    : availableCategories.map(cat => ({
+        categoryId: cat.id,
+        categoryName: cat.name,
+        categoryType: 'expense' as const,
+        currentAverage: cat.average,
+        recommendedGoal: 0,
+        percentageOfIncome: 0,
+        idealPercentage: 0,
+        difference: 0,
+        priority: 'low' as const,
+        reasoning: '',
+        paymentMethod: undefined
+      }));
+
+  const totalCurrent = expenseGoals.reduce((sum, g) => sum + g.currentAverage, 0);
+  const maxPossibleSavings = totalCurrent * 0.3; // Máximo 30% de economia
+
+  const handleTargetSavingsInput = (value: string) => {
+    setLocalTargetSavings(value);
+    const numValue = parseFloat(value.replace(/[^\d,.-]/g, '').replace(',', '.'));
+    onTargetSavingsChange(isNaN(numValue) ? undefined : numValue);
+  };
+
+  const toggleFixed = (categoryId: string) => {
+    const newFixed = localFixedCategories.includes(categoryId)
+      ? localFixedCategories.filter(id => id !== categoryId)
+      : [...localFixedCategories, categoryId];
+    setLocalFixedCategories(newFixed);
+    onFixedCategoriesChange(newFixed);
+  };
+
+  const handleGenerate = () => {
+    onTargetSavingsChange(parseFloat(localTargetSavings.replace(/[^\d,.-]/g, '').replace(',', '.')) || undefined);
+    onFixedCategoriesChange(localFixedCategories);
+    if (onRecalculate) {
+      onRecalculate();
+    } else if (onGenerate) {
+      onGenerate();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Configurar Metas Personalizadas</h2>
+            <p className="text-sm text-gray-500 mt-1">Defina sua meta de economia e categorias essenciais</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Meta de Economia */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              Quanto você gostaria de economizar por mês?
+            </label>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={localTargetSavings}
+                onChange={(e) => handleTargetSavingsInput(e.target.value)}
+                placeholder="Ex: 500,00"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7C7C] focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500">
+                Economia máxima sugerida: {formatCurrency(maxPossibleSavings)}/mês
+                {targetSavings && targetSavings > maxPossibleSavings && (
+                  <span className="text-red-600 ml-2">⚠️ Meta muito alta, pode ser difícil de atingir</span>
+                )}
+              </p>
+              {targetSavings && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    💡 Com essa economia, você pouparia <strong>{formatCurrency(targetSavings * 12)}</strong> por ano
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Categorias Fixas */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-3">
+              Marque as categorias que são essenciais (não devem ser reduzidas):
+            </label>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {expenseGoals.map((goal) => {
+                const isFixed = localFixedCategories.includes(goal.categoryId);
+                return (
+                  <div
+                    key={goal.categoryId}
+                    className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                      isFixed
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => toggleFixed(goal.categoryId)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        isFixed ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                      }`}>
+                        {isFixed && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{goal.categoryName}</p>
+                        <p className="text-sm text-gray-500">
+                          Gasto atual: {formatCurrency(goal.currentAverage)}/mês
+                        </p>
+                      </div>
+                    </div>
+                    {isFixed && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                        Essencial
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {localFixedCategories.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                {localFixedCategories.length} categoria(s) marcada(s) como essenciais
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="px-6 py-2 bg-[#FF7C7C] text-white rounded-lg hover:bg-[#ff6b6b] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (goals ? 'Recalculando...' : 'Gerando...') : (goals ? 'Recalcular Metas' : 'Gerar Metas')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
