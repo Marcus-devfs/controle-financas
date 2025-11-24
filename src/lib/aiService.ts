@@ -1336,6 +1336,7 @@ JSON (sem markdown):
     const variableGoals = expenseGoals.filter(g => !fixedCategories.includes(g.categoryId));
     
     // Calcular totais
+    // Categorias fixas: manter EXATAMENTE o valor atual (gasto médio = meta)
     const totalFixed = fixedGoals.reduce((sum, g) => sum + g.currentAverage, 0);
     const totalVariableCurrent = variableGoals.reduce((sum, g) => sum + g.currentAverage, 0);
     const totalCurrent = totalFixed + totalVariableCurrent;
@@ -1343,6 +1344,7 @@ JSON (sem markdown):
     // Determinar meta de despesas totais
     let targetTotalExpenses: number;
     if (targetSavings && targetSavings > 0) {
+      // Meta de economia definida pelo usuário
       targetTotalExpenses = totalCurrent - targetSavings;
     } else {
       // Se não tem meta de economia, calcular para equilibrar ou ter saldo positivo
@@ -1356,43 +1358,78 @@ JSON (sem markdown):
       }
     }
     
-    // Proteger categorias fixas (máximo 5% de redução)
-    const protectedFixedTotal = fixedGoals.reduce((sum, g) => sum + Math.max(g.currentAverage * 0.95, g.recommendedGoal), 0);
-    const targetVariableExpenses = Math.max(0, targetTotalExpenses - protectedFixedTotal);
+    // Categorias fixas mantêm o valor atual (sem redução)
+    const fixedTotal = totalFixed; // Sem redução nas fixas
     
-    // Se não há espaço suficiente nas variáveis, ajustar
+    // Calcular quanto sobra para as categorias variáveis
+    const targetVariableExpenses = Math.max(0, targetTotalExpenses - fixedTotal);
+    
+    // Se não há espaço suficiente nas variáveis, ajustar meta de economia
     if (targetVariableExpenses < totalVariableCurrent * 0.5) {
-      // Muito difícil atingir, ajustar meta
-      const minVariable = totalVariableCurrent * 0.7; // Redução máxima de 30% nas variáveis
-      targetTotalExpenses = protectedFixedTotal + minVariable;
+      // Muito difícil atingir, ajustar meta (redução máxima de 50% nas variáveis)
+      const minVariable = totalVariableCurrent * 0.5;
+      targetTotalExpenses = fixedTotal + minVariable;
+      // Recalcular targetVariableExpenses
+      const adjustedTargetVariableExpenses = minVariable;
+      
+      // Calcular fator de redução para categorias variáveis
+      const reductionFactor = totalVariableCurrent > 0 
+        ? adjustedTargetVariableExpenses / totalVariableCurrent 
+        : 1;
+      
+      // Aplicar ajustes
+      return goals.map(goal => {
+        if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+          // Categoria fixa: manter EXATAMENTE o valor atual (sem redução)
+          return {
+            ...goal,
+            recommendedGoal: goal.currentAverage, // Meta = Gasto médio atual
+            difference: 0, // Sem diferença
+            percentageOfIncome: (goal.currentAverage / averageIncome) * 100,
+            reasoning: `Categoria essencial - mantida no valor atual (R$ ${goal.currentAverage.toFixed(2)}).`,
+            priority: 'low' as const
+          };
+        } else if (goal.categoryType === 'expense' && variableGoals.some(vg => vg.categoryId === goal.categoryId)) {
+          // Categoria variável: aplicar redução proporcional
+          const newGoal = goal.currentAverage * reductionFactor;
+          return {
+            ...goal,
+            recommendedGoal: Math.max(0, newGoal),
+            difference: Math.max(0, newGoal) - goal.currentAverage,
+            percentageOfIncome: (Math.max(0, newGoal) / averageIncome) * 100,
+            reasoning: `Ajustado para compensar categorias essenciais e atingir meta de economia. ${goal.reasoning}`
+          };
+        }
+        return goal;
+      });
     }
     
     // Calcular fator de redução para categorias variáveis
-    const totalVariableRecommended = variableGoals.reduce((sum, g) => sum + g.recommendedGoal, 0);
-    const reductionFactor = totalVariableRecommended > 0 
-      ? targetVariableExpenses / totalVariableRecommended 
+    const reductionFactor = totalVariableCurrent > 0 
+      ? targetVariableExpenses / totalVariableCurrent 
       : 1;
     
     // Aplicar ajustes
     return goals.map(goal => {
       if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
-        // Categoria fixa: proteger (máximo 5% de redução)
+        // Categoria fixa: manter EXATAMENTE o valor atual (sem redução)
         return {
           ...goal,
-          recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
-          difference: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal) - goal.currentAverage,
-          reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+          recommendedGoal: goal.currentAverage, // Meta = Gasto médio atual
+          difference: 0, // Sem diferença
+          percentageOfIncome: (goal.currentAverage / averageIncome) * 100,
+          reasoning: `Categoria essencial - mantida no valor atual (R$ ${goal.currentAverage.toFixed(2)}).`,
           priority: 'low' as const
         };
       } else if (goal.categoryType === 'expense' && variableGoals.some(vg => vg.categoryId === goal.categoryId)) {
-        // Categoria variável: aplicar redução proporcional
-        const newGoal = goal.recommendedGoal * reductionFactor;
+        // Categoria variável: aplicar redução proporcional baseada no valor ATUAL, não no recomendado
+        const newGoal = goal.currentAverage * reductionFactor;
         return {
           ...goal,
           recommendedGoal: Math.max(0, newGoal),
           difference: Math.max(0, newGoal) - goal.currentAverage,
           percentageOfIncome: (Math.max(0, newGoal) / averageIncome) * 100,
-          reasoning: `Ajustado para equilibrar orçamento. ${goal.reasoning}`
+          reasoning: `Ajustado para compensar categorias essenciais e atingir meta de economia. ${goal.reasoning}`
         };
       }
       return goal;
@@ -1421,11 +1458,13 @@ JSON (sem markdown):
     if (!targetSavings || targetSavings <= 0) {
       const updatedGoals = goals.categoryGoals.map(goal => {
         if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
-          // Categoria fixa: manter próximo do atual (máximo 5% de redução)
+          // Categoria fixa: manter EXATAMENTE o valor atual (sem redução)
           return {
             ...goal,
-            recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
-            reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+            recommendedGoal: goal.currentAverage, // Meta = Gasto médio atual
+            difference: 0, // Sem diferença
+            percentageOfIncome: (goal.currentAverage / goals.averageMonthlyIncome) * 100,
+            reasoning: `Categoria essencial - mantida no valor atual (R$ ${goal.currentAverage.toFixed(2)}).`,
             priority: 'low' as const
           };
         }
@@ -1440,14 +1479,16 @@ JSON (sem markdown):
     }
     
     // Calcular meta de economia
+    // Categorias fixas mantêm o valor atual (sem redução)
     const targetTotalExpenses = totalCurrent - targetSavings;
-    const targetVariableExpenses = targetTotalExpenses - totalFixed;
+    const targetVariableExpenses = targetTotalExpenses - totalFixed; // totalFixed já é o valor atual (sem redução)
     
     // Se a meta é impossível (fixas já ultrapassam o limite)
     if (targetVariableExpenses < 0) {
       console.warn('⚠️ Meta de economia muito alta. Categorias fixas já ultrapassam o limite.');
-      // Ajustar para o mínimo possível
-      const minPossible = totalFixed * 1.05; // Fixas + 5% de margem
+      // Ajustar para o mínimo possível (fixas mantidas + redução máxima de 50% nas variáveis)
+      const minVariable = totalVariableCurrent * 0.5; // Redução máxima de 50% nas variáveis
+      const minPossible = totalFixed + minVariable;
       const adjustedSavings = totalCurrent - minPossible;
       
       return {
@@ -1455,19 +1496,24 @@ JSON (sem markdown):
         summary: `${goals.summary} Meta de economia ajustada para R$ ${adjustedSavings.toFixed(2)}/mês devido às categorias essenciais.`,
         categoryGoals: goals.categoryGoals.map(goal => {
           if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
+            // Categoria fixa: manter EXATAMENTE o valor atual
             return {
               ...goal,
-              recommendedGoal: goal.currentAverage * 0.95,
-              reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+              recommendedGoal: goal.currentAverage, // Meta = Gasto médio atual
+              difference: 0,
+              percentageOfIncome: (goal.currentAverage / goals.averageMonthlyIncome) * 100,
+              reasoning: `Categoria essencial - mantida no valor atual (R$ ${goal.currentAverage.toFixed(2)}).`,
               priority: 'low' as const
             };
           }
-          // Variáveis: reduzir proporcionalmente
-          const reductionFactor = minPossible / totalCurrent;
+          // Variáveis: reduzir proporcionalmente (50% máximo)
+          const reductionFactor = 0.5; // Redução máxima de 50%
+          const newGoal = goal.currentAverage * reductionFactor;
           return {
             ...goal,
-            recommendedGoal: goal.currentAverage * reductionFactor,
-            difference: (goal.currentAverage * reductionFactor) - goal.currentAverage,
+            recommendedGoal: newGoal,
+            difference: newGoal - goal.currentAverage,
+            percentageOfIncome: (newGoal / goals.averageMonthlyIncome) * 100,
             reasoning: `Ajustado para atingir economia de R$ ${adjustedSavings.toFixed(2)}/mês. ${goal.reasoning}`
           };
         }),
@@ -1476,28 +1522,31 @@ JSON (sem markdown):
     }
     
     // Calcular fator de redução proporcional para categorias variáveis
-    const reductionFactor = targetVariableExpenses / totalVariableCurrent;
+    const reductionFactor = totalVariableCurrent > 0 
+      ? targetVariableExpenses / totalVariableCurrent 
+      : 1;
     
     // Recalcular metas
     const updatedGoals = goals.categoryGoals.map(goal => {
       if (fixedCategories.includes(goal.categoryId) && goal.categoryType === 'expense') {
-        // Categoria fixa: manter próximo do atual (máximo 5% de redução)
+        // Categoria fixa: manter EXATAMENTE o valor atual (sem redução)
         return {
           ...goal,
-          recommendedGoal: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal),
-          difference: Math.max(goal.currentAverage * 0.95, goal.recommendedGoal) - goal.currentAverage,
-          reasoning: `Categoria essencial - mantida próxima do atual. ${goal.reasoning}`,
+          recommendedGoal: goal.currentAverage, // Meta = Gasto médio atual
+          difference: 0, // Sem diferença
+          percentageOfIncome: (goal.currentAverage / goals.averageMonthlyIncome) * 100,
+          reasoning: `Categoria essencial - mantida no valor atual (R$ ${goal.currentAverage.toFixed(2)}).`,
           priority: 'low' as const
         };
       } else if (goal.categoryType === 'expense' && variableGoals.some(vg => vg.categoryId === goal.categoryId)) {
-        // Categoria variável: aplicar redução proporcional
+        // Categoria variável: aplicar redução proporcional baseada no valor ATUAL
         const newGoal = goal.currentAverage * reductionFactor;
         return {
           ...goal,
           recommendedGoal: newGoal,
           difference: newGoal - goal.currentAverage,
           percentageOfIncome: (newGoal / goals.averageMonthlyIncome) * 100,
-          reasoning: `Ajustado para atingir economia de R$ ${targetSavings.toFixed(2)}/mês. ${goal.reasoning}`
+          reasoning: `Ajustado para compensar categorias essenciais e atingir economia de R$ ${targetSavings.toFixed(2)}/mês. ${goal.reasoning}`
         };
       }
       return goal;

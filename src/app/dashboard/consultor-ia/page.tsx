@@ -3,7 +3,7 @@
 import { useBudgetGoals } from "@/hooks/useBudgetGoals";
 import { formatCurrency } from "@/lib/data";
 import { useState, useEffect } from "react";
-import { CategoryGoal, BudgetGoalsAnalysis, aiService } from "@/lib/aiService";
+import { CategoryGoal, BudgetGoalsAnalysis } from "@/lib/aiService";
 
 export default function ConsultorIAPage() {
   const {
@@ -120,7 +120,7 @@ export default function ConsultorIAPage() {
         fixedCategories: fixedCategories
       };
 
-      const result = await generateGoals(preferences);
+      await generateGoals(preferences);
       setShowConfigModal(false);
     } catch (err) {
       console.error('Erro ao recalcular metas:', err);
@@ -236,7 +236,7 @@ export default function ConsultorIAPage() {
             Nenhuma meta encontrada
           </h2>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Clique em "Gerar Metas" para que nossa IA analise seus últimos 3 meses e crie metas personalizadas por categoria.
+            Clique em &quot;Gerar Metas&quot; para que nossa IA analise seus últimos 3 meses e crie metas personalizadas por categoria.
           </p>
           <button
             onClick={handleGenerateGoals}
@@ -406,7 +406,7 @@ function CategoryGoalsList({
               <CategoryGoalCard 
                 key={goal.categoryId || index} 
                 goal={goal}
-                isFixed={fixedCategories.includes(goal.categoryId)}
+                isFixed={fixedCategories?.includes(goal.categoryId) || false}
                 onToggleFixed={onToggleFixed ? () => onToggleFixed(goal.categoryId) : undefined}
               />
             ))}
@@ -461,7 +461,14 @@ function CategoryGoalCard({
     <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="font-semibold text-gray-900 mb-1">{goal.categoryName}</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-semibold text-gray-900">{goal.categoryName}</h3>
+            {isFixed && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                🔒 Essencial
+              </span>
+            )}
+          </div>
           <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(goal.priority)}`}>
             {goal.priority === 'high' ? 'Alta Prioridade' : goal.priority === 'medium' ? 'Média Prioridade' : 'Baixa Prioridade'}
           </span>
@@ -518,6 +525,21 @@ function CategoryGoalCard({
         {goal.reasoning && (
           <div className="pt-3 border-t border-gray-100">
             <p className="text-xs text-gray-600 leading-relaxed">{goal.reasoning}</p>
+          </div>
+        )}
+
+        {onToggleFixed && isExpense && (
+          <div className="pt-3 border-t border-gray-100 mt-3">
+            <button
+              onClick={onToggleFixed}
+              className={`w-full text-xs px-3 py-2 rounded-lg transition-colors ${
+                isFixed
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {isFixed ? '🔒 Remover como Essencial' : '➕ Marcar como Essencial'}
+            </button>
           </div>
         )}
       </div>
