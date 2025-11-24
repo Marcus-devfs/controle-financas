@@ -106,6 +106,9 @@ export default function DashboardLayout({
               <Link className="block px-3 py-2 rounded hover:bg-foreground/5 transition" href="/dashboard/relatorios">
                 Relatórios
               </Link>
+              <Link className="block px-3 py-2 rounded hover:bg-foreground/5 transition" href="/dashboard/consultor-ia">
+              Consultor IA
+              </Link>
             </nav>
             <button 
               onClick={handleLogout}

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         temperature: 0.7,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 8192, // AUMENTAR SIGNIFICATIVAMENTE
+        maxOutputTokens: 16384, // Aumentado para evitar cortes
       }
     });
 

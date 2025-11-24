@@ -30,12 +30,51 @@ export interface BudgetAnalysis {
   idealSavings: number;
 }
 
+export interface CategoryGoal {
+  categoryId: string;
+  categoryName: string;
+  categoryType: 'income' | 'expense' | 'investment';
+  currentAverage: number; // média dos últimos 3 meses
+  recommendedGoal: number; // meta recomendada
+  percentageOfIncome: number; // porcentagem da receita média
+  idealPercentage: number; // porcentagem ideal segundo padrões financeiros
+  difference: number; // diferença entre atual e meta
+  priority: 'low' | 'medium' | 'high';
+  reasoning: string; // explicação da meta
+  paymentMethod?: 'card' | 'cash' | 'both'; // método de pagamento predominante
+}
+
+export interface BudgetGoalsAnalysis {
+  summary: string;
+  averageMonthlyIncome: number;
+  averageMonthlyExpenses: number;
+  categoryGoals: CategoryGoal[];
+  overallRecommendations: string[];
+  idealBudgetBreakdown: {
+    needs: number; // porcentagem
+    wants: number; // porcentagem
+    savings: number; // porcentagem
+  };
+  generatedAt: string;
+}
+
 export interface FinancialData {
   transactions: Transaction[];
   categories: Category[];
   stats: DashboardStats;
   currentMonth: string;
   previousMonth?: string;
+}
+
+export interface MultiMonthFinancialData {
+  months: {
+    month: string;
+    transactions: Transaction[];
+    stats: DashboardStats;
+  }[];
+  categories: Category[];
+  averageIncome: number;
+  averageExpenses: number;
 }
 
 class AIService {
@@ -492,6 +531,428 @@ JSON OBRIGATÓRIO (sem texto extra):
     } catch (error) {
       console.error('❌ Erro ao deletar análise:', error);
       throw error;
+    }
+  }
+
+  // Método para gerar metas de orçamento baseado nos últimos 3 meses
+  async generateBudgetGoals(data: MultiMonthFinancialData): Promise<BudgetGoalsAnalysis> {
+    try {
+      // Verificar se já existe análise de metas salva
+      try {
+        const existingGoals = await apiClient.getBudgetGoals();
+        console.log('📋 Metas existentes encontradas');
+        return existingGoals.goals as BudgetGoalsAnalysis;
+      } catch {
+        console.log('📝 Nenhuma meta existente encontrada, gerando novas...');
+      }
+
+      // Se não tiver API key, usar análise local
+      if (!this.apiKey) {
+        console.log('🔧 Usando análise local de metas (sem API key)');
+        const localGoals = this.getLocalBudgetGoals(data);
+        await this.saveBudgetGoalsToDatabase(localGoals);
+        return localGoals;
+      }
+
+      console.log('🔑 API Key configurada, usando Gemini API para gerar metas');
+
+      const prompt = this.buildBudgetGoalsPrompt(data);
+      console.log('📝 Prompt de metas gerado:', prompt.substring(0, 200) + '...');
+
+      const response = await this.callGeminiAPI(prompt);
+      console.log('🤖 Resposta da IA recebida:', response.substring(0, 200) + '...');
+
+      const goals = this.parseBudgetGoalsResponse(response, data);
+      
+      // Salvar metas no banco de dados
+      await this.saveBudgetGoalsToDatabase(goals);
+      
+      return goals;
+    } catch (error) {
+      console.error('❌ Erro ao gerar metas de orçamento:', error);
+      console.log('🔄 Usando análise local como fallback');
+      const localGoals = this.getLocalBudgetGoals(data);
+      try {
+        await this.saveBudgetGoalsToDatabase(localGoals);
+      } catch (saveError) {
+        console.error('❌ Erro ao salvar metas locais:', saveError);
+      }
+      return localGoals;
+    }
+  }
+
+  private buildBudgetGoalsPrompt(data: MultiMonthFinancialData): string {
+    const { months, categories, averageIncome, averageExpenses } = data;
+
+    // Preparar dados por categoria para os últimos 3 meses
+    const categoryData: Record<string, {
+      name: string;
+      type: 'income' | 'expense' | 'investment';
+      monthlyTotals: number[];
+      average: number;
+      paymentMethods: { card: number; cash: number };
+    }> = {};
+
+    categories.forEach(category => {
+      categoryData[category.id] = {
+        name: category.name,
+        type: category.type,
+        monthlyTotals: [],
+        average: 0,
+        paymentMethods: { card: 0, cash: 0 }
+      };
+    });
+
+    // Calcular totais por categoria para cada mês
+    months.forEach((monthData, index) => {
+      const categoryTotals: Record<string, number> = {};
+      const categoryPaymentMethods: Record<string, { card: number; cash: number }> = {};
+
+      monthData.transactions.forEach(transaction => {
+        const categoryId = typeof transaction.categoryId === 'object' 
+          ? (transaction.categoryId as any)._id 
+          : transaction.categoryId;
+        
+        if (!categoryTotals[categoryId]) {
+          categoryTotals[categoryId] = 0;
+          categoryPaymentMethods[categoryId] = { card: 0, cash: 0 };
+        }
+
+        categoryTotals[categoryId] += transaction.amount;
+        
+        // Contar método de pagamento
+        if (transaction.creditCardId) {
+          categoryPaymentMethods[categoryId].card += transaction.amount;
+        } else {
+          categoryPaymentMethods[categoryId].cash += transaction.amount;
+        }
+      });
+
+      // Adicionar totais ao histórico da categoria
+      Object.keys(categoryData).forEach(catId => {
+        const total = categoryTotals[catId] || 0;
+        categoryData[catId].monthlyTotals.push(total);
+        if (categoryPaymentMethods[catId]) {
+          categoryData[catId].paymentMethods.card += categoryPaymentMethods[catId].card;
+          categoryData[catId].paymentMethods.cash += categoryPaymentMethods[catId].cash;
+        }
+      });
+    });
+
+    // Calcular médias
+    Object.keys(categoryData).forEach(catId => {
+      const totals = categoryData[catId].monthlyTotals;
+      categoryData[catId].average = totals.length > 0 
+        ? totals.reduce((sum, val) => sum + val, 0) / totals.length 
+        : 0;
+    });
+
+    // Preparar string de dados por categoria
+    const expenseCategories = Object.values(categoryData)
+      .filter(cat => cat.type === 'expense' && cat.average > 0)
+      .map(cat => {
+        const paymentMethod = cat.paymentMethods.card > cat.paymentMethods.cash ? 'cartão' : 'dinheiro';
+        return `${cat.name}: R$ ${cat.average.toFixed(2)}/mês (${paymentMethod})`;
+      })
+      .join(', ');
+
+    const incomeCategories = Object.values(categoryData)
+      .filter(cat => cat.type === 'income' && cat.average > 0)
+      .map(cat => `${cat.name}: R$ ${cat.average.toFixed(2)}/mês`)
+      .join(', ');
+
+    // Preparar lista de categorias com IDs para o prompt (limitado a 20 para evitar prompt muito longo)
+    const categoryList = Object.entries(categoryData)
+      .filter(([_, cat]) => cat.average > 0)
+      .sort(([_, a], [__, b]) => b.average - a.average) // Ordenar por maior gasto primeiro
+      .slice(0, 20) // Limitar a 20 categorias
+      .map(([id, cat]) => {
+        const paymentMethod = cat.paymentMethods.card > cat.paymentMethods.cash ? 'card' : cat.paymentMethods.cash > 0 ? 'cash' : 'both';
+        return {
+          id,
+          name: cat.name,
+          type: cat.type,
+          average: cat.average,
+          paymentMethod,
+          pct: averageIncome > 0 ? ((cat.average / averageIncome) * 100).toFixed(1) : '0'
+        };
+      });
+
+    const prompt = `Crie metas financeiras realistas. Receita: R$ ${averageIncome.toFixed(2)}/mês. Despesa: R$ ${averageExpenses.toFixed(2)}/mês.
+
+Categorias (${categoryList.length}):
+${categoryList.map(c => `${c.name}(${c.type}): R$ ${c.average.toFixed(2)} (${c.pct}%) [ID:${c.id}]`).join('; ')}
+
+Padrões ideais: Moradia 30%, Alimentação 15%, Transporte 12%, Saúde 8%, Contas 5%, Lazer 8%, Outros 8%.
+
+Para cada categoria de DESPESA:
+- Se gasto > ideal*1.2: meta = ideal (reduzir)
+- Se gasto < ideal*1.1: meta = min(atual*1.05, ideal*1.1) (pode aumentar um pouco)
+- Senão: meta = atual*0.9 (reduzir 10%)
+- Prioridade: high se > ideal*1.5, medium se > ideal*1.2, low senão
+
+Para RECEITAS: meta = atual*1.1 (aumentar 10%)
+
+Retorne JSON válido (sem markdown):
+{
+  "summary": "Resumo em 2 frases",
+  "averageMonthlyIncome": ${averageIncome},
+  "averageMonthlyExpenses": ${averageExpenses},
+  "categoryGoals": [${categoryList.map(c => `{"categoryId":"${c.id}","categoryName":"${c.name}","categoryType":"${c.type}","currentAverage":${c.average},"recommendedGoal":CALCULE,"percentageOfIncome":${c.pct},"idealPercentage":DEFINA,"difference":CALCULE,"priority":"DEFINA","reasoning":"Explicação curta","paymentMethod":"${c.paymentMethod}"}`).join(',')}],
+  "overallRecommendations": ["Rec 1", "Rec 2"],
+  "idealBudgetBreakdown": {"needs":55,"wants":25,"savings":20}
+}`;
+
+    return prompt;
+  }
+
+  private parseBudgetGoalsResponse(response: string, data: MultiMonthFinancialData): BudgetGoalsAnalysis {
+    try {
+      console.log('🔍 Tentando parsear resposta de metas da IA:', response.substring(0, 300) + '...');
+
+      let cleanResponse = response.trim();
+      cleanResponse = cleanResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+      const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        let jsonString = jsonMatch[0];
+
+        const isIncomplete = this.isJSONIncomplete(jsonString);
+        if (isIncomplete) {
+          console.warn('⚠️ JSON parece estar incompleto, tentando reparar...');
+          jsonString = this.repairIncompleteJSON(jsonString);
+        }
+
+        const parsed = JSON.parse(jsonString);
+
+        const goals: BudgetGoalsAnalysis = {
+          summary: parsed.summary || 'Metas de orçamento geradas com sucesso',
+          averageMonthlyIncome: typeof parsed.averageMonthlyIncome === 'number' ? parsed.averageMonthlyIncome : data.averageIncome,
+          averageMonthlyExpenses: typeof parsed.averageMonthlyExpenses === 'number' ? parsed.averageMonthlyExpenses : data.averageExpenses,
+          categoryGoals: Array.isArray(parsed.categoryGoals) ? parsed.categoryGoals.map((g: any) => ({
+            categoryId: g.categoryId || '',
+            categoryName: g.categoryName || 'Categoria',
+            categoryType: ['income', 'expense', 'investment'].includes(g.categoryType) ? g.categoryType : 'expense',
+            currentAverage: typeof g.currentAverage === 'number' ? g.currentAverage : 0,
+            recommendedGoal: typeof g.recommendedGoal === 'number' ? g.recommendedGoal : 0,
+            percentageOfIncome: typeof g.percentageOfIncome === 'number' ? g.percentageOfIncome : 0,
+            idealPercentage: typeof g.idealPercentage === 'number' ? g.idealPercentage : 0,
+            difference: typeof g.difference === 'number' ? g.difference : 0,
+            priority: ['low', 'medium', 'high'].includes(g.priority) ? g.priority : 'medium',
+            reasoning: g.reasoning || 'Meta baseada em padrões financeiros saudáveis',
+            paymentMethod: g.paymentMethod || undefined
+          })) : [],
+          overallRecommendations: Array.isArray(parsed.overallRecommendations) ? parsed.overallRecommendations : [],
+          idealBudgetBreakdown: parsed.idealBudgetBreakdown ? {
+            needs: typeof parsed.idealBudgetBreakdown.needs === 'number' ? parsed.idealBudgetBreakdown.needs : 55,
+            wants: typeof parsed.idealBudgetBreakdown.wants === 'number' ? parsed.idealBudgetBreakdown.wants : 25,
+            savings: typeof parsed.idealBudgetBreakdown.savings === 'number' ? parsed.idealBudgetBreakdown.savings : 20
+          } : { needs: 55, wants: 25, savings: 20 },
+          generatedAt: new Date().toISOString()
+        };
+
+        console.log('✅ Metas parseadas com sucesso');
+        return goals;
+      } else {
+        console.warn('⚠️ Nenhum JSON encontrado na resposta');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao parsear resposta de metas da IA:', error);
+      console.log('📝 Resposta original:', response);
+    }
+
+    console.log('🔄 Usando análise local como fallback');
+    return this.getLocalBudgetGoals(data);
+  }
+
+  private getLocalBudgetGoals(data: MultiMonthFinancialData): BudgetGoalsAnalysis {
+    const { months, categories, averageIncome, averageExpenses } = data;
+
+    // Calcular médias por categoria
+    const categoryAverages: Record<string, number> = {};
+    
+    categories.forEach(category => {
+      const totals: number[] = [];
+      months.forEach(monthData => {
+        const monthTotal = monthData.transactions
+          .filter(t => {
+            const categoryId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+            return categoryId === category.id;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+        totals.push(monthTotal);
+      });
+      categoryAverages[category.id] = totals.length > 0 
+        ? totals.reduce((sum, val) => sum + val, 0) / totals.length 
+        : 0;
+    });
+
+    // Mapeamento mais detalhado de categorias para porcentagens ideais
+    const getIdealPercentage = (categoryName: string, categoryType: string): number => {
+      if (categoryType !== 'expense') return 0;
+      
+      const name = categoryName.toLowerCase();
+      
+      // Necessidades básicas (55% total)
+      if (name.includes('moradia') || name.includes('aluguel') || name.includes('casa') || name.includes('condomínio')) {
+        return 30;
+      }
+      if (name.includes('alimentação') || name.includes('comida') || name.includes('supermercado') || name.includes('restaurante')) {
+        return 15;
+      }
+      if (name.includes('transporte') || name.includes('combustível') || name.includes('uber') || name.includes('taxi') || name.includes('ônibus')) {
+        return 12;
+      }
+      if (name.includes('saúde') || name.includes('convênio') || name.includes('plano') || name.includes('médico') || name.includes('farmacia')) {
+        return 8;
+      }
+      if (name.includes('contas') || name.includes('luz') || name.includes('água') || name.includes('internet') || name.includes('telefone')) {
+        return 5;
+      }
+      
+      // Desejos (25% total)
+      if (name.includes('lazer') || name.includes('entretenimento') || name.includes('cinema') || name.includes('shows')) {
+        return 8;
+      }
+      if (name.includes('assinatura') || name.includes('streaming') || name.includes('netflix') || name.includes('spotify')) {
+        return 5;
+      }
+      if (name.includes('compras') || name.includes('roupa') || name.includes('eletrônicos')) {
+        return 7;
+      }
+      if (name.includes('cuidados') || name.includes('beleza') || name.includes('salão')) {
+        return 5;
+      }
+      
+      // Se não se encaixar em nenhuma, usar porcentagem baseada no gasto atual
+      // Se está gastando muito (>15% da receita), meta é reduzir para 10%
+      // Se está gastando pouco (<5% da receita), manter próximo do atual
+      const currentPct = averageIncome > 0 ? (categoryAverages[category.id] / averageIncome) * 100 : 0;
+      if (currentPct > 15) return 10;
+      if (currentPct < 5) return Math.max(currentPct * 1.1, 3); // Aumentar um pouco se muito baixo
+      return 8; // Padrão para outras categorias
+    };
+
+    const categoryGoals: CategoryGoal[] = categories
+      .filter(cat => categoryAverages[cat.id] > 0)
+      .map(category => {
+        const currentAvg = categoryAverages[category.id];
+        const percentage = averageIncome > 0 ? (currentAvg / averageIncome) * 100 : 0;
+        
+        // Definir porcentagem ideal baseada na categoria
+        const idealPercentage = category.type === 'expense' 
+          ? getIdealPercentage(category.name, category.type)
+          : 0;
+
+        // Para despesas: se está acima do ideal, reduzir. Se está abaixo, pode aumentar um pouco mas não muito
+        let recommendedGoal: number;
+        if (category.type === 'expense') {
+          const idealAmount = averageIncome > 0 ? (averageIncome * idealPercentage) / 100 : 0;
+          
+          // Se o gasto atual está muito acima do ideal, meta é reduzir para o ideal
+          if (currentAvg > idealAmount * 1.2) {
+            recommendedGoal = idealAmount;
+          } 
+          // Se está próximo ou abaixo do ideal, manter próximo do atual (não forçar redução desnecessária)
+          else if (currentAvg <= idealAmount * 1.1) {
+            recommendedGoal = Math.min(currentAvg * 1.05, idealAmount * 1.1); // Pode aumentar até 5% ou 10% acima do ideal
+          }
+          // Se está um pouco acima, reduzir gradualmente
+          else {
+            recommendedGoal = currentAvg * 0.9; // Reduzir 10%
+          }
+        } else {
+          // Para receitas, sugerir aumento de 10%
+          recommendedGoal = currentAvg * 1.1;
+        }
+        
+        const difference = recommendedGoal - currentAvg;
+        
+        // Determinar prioridade baseada em quanto está acima do ideal
+        let priority: 'low' | 'medium' | 'high' = 'low';
+        if (category.type === 'expense') {
+          if (percentage > idealPercentage * 1.5) {
+            priority = 'high';
+          } else if (percentage > idealPercentage * 1.2 || difference < -100) {
+            priority = 'medium';
+          } else {
+            priority = 'low';
+          }
+        }
+
+        // Determinar método de pagamento predominante
+        let paymentMethod: 'card' | 'cash' | 'both' | undefined = undefined;
+        if (category.type === 'expense') {
+          const cardTotal = months.reduce((sum, m) => {
+            return sum + m.transactions
+              .filter(t => {
+                const catId = typeof t.categoryId === 'object' ? (t.categoryId as any)._id : t.categoryId;
+                return catId === category.id && t.creditCardId;
+              })
+              .reduce((s, t) => s + t.amount, 0);
+          }, 0);
+          
+          const cashTotal = currentAvg * months.length - cardTotal;
+          if (cardTotal > cashTotal * 1.5) {
+            paymentMethod = 'card';
+          } else if (cashTotal > cardTotal * 1.5) {
+            paymentMethod = 'cash';
+          } else if (cardTotal > 0 && cashTotal > 0) {
+            paymentMethod = 'both';
+          }
+        }
+
+        return {
+          categoryId: category.id,
+          categoryName: category.name,
+          categoryType: category.type,
+          currentAverage: currentAvg,
+          recommendedGoal: Math.max(0, recommendedGoal), // Garantir que não seja negativo
+          percentageOfIncome: percentage,
+          idealPercentage,
+          difference,
+          priority,
+          reasoning: category.type === 'expense'
+            ? `Gasto atual de ${percentage.toFixed(1)}% da receita. Meta ideal é ${idealPercentage}% (R$ ${((averageIncome * idealPercentage) / 100).toFixed(2)}). ${difference < 0 ? `Redução de R$ ${Math.abs(difference).toFixed(2)} necessária.` : `Pode manter próximo do atual.`}`
+            : `Receita atual de R$ ${currentAvg.toFixed(2)}. Meta sugerida de R$ ${recommendedGoal.toFixed(2)} para aumentar em ${((recommendedGoal / currentAvg - 1) * 100).toFixed(1)}%.`,
+          paymentMethod
+        };
+      })
+      .sort((a, b) => {
+        // Ordenar por prioridade (high primeiro) e depois por diferença (maior redução primeiro)
+        if (a.priority !== b.priority) {
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          return priorityOrder[b.priority] - priorityOrder[a.priority];
+        }
+        return Math.abs(b.difference) - Math.abs(a.difference);
+      })
+      .slice(0, 20); // Limitar a 20 categorias mais relevantes
+
+    return {
+      summary: `Receita média: R$ ${averageIncome.toFixed(2)} | Despesa média: R$ ${averageExpenses.toFixed(2)} | Metas criadas para ${categoryGoals.length} categorias`,
+      averageMonthlyIncome: averageIncome,
+      averageMonthlyExpenses: averageExpenses,
+      categoryGoals,
+      overallRecommendations: [
+        'Mantenha gastos essenciais abaixo de 60% da receita',
+        'Reserve pelo menos 20% para poupança e investimentos',
+        'Revise e ajuste as metas mensalmente'
+      ],
+      idealBudgetBreakdown: {
+        needs: 55,
+        wants: 25,
+        savings: 20
+      },
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  private async saveBudgetGoalsToDatabase(goals: BudgetGoalsAnalysis): Promise<void> {
+    try {
+      await apiClient.saveBudgetGoals(goals);
+      console.log('💾 Metas salvas no banco de dados');
+    } catch (error) {
+      console.error('❌ Erro ao salvar metas no banco:', error);
     }
   }
 }

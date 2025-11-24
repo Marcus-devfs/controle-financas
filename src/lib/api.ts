@@ -170,6 +170,43 @@ export interface AIAnalysis {
   updatedAt: string;
 }
 
+// Interface para metas de orçamento
+export interface CategoryGoal {
+  categoryId: string;
+  categoryName: string;
+  categoryType: 'income' | 'expense' | 'investment';
+  currentAverage: number;
+  recommendedGoal: number;
+  percentageOfIncome: number;
+  idealPercentage: number;
+  difference: number;
+  priority: 'low' | 'medium' | 'high';
+  reasoning: string;
+  paymentMethod?: 'card' | 'cash' | 'both';
+}
+
+export interface BudgetGoalsAnalysis {
+  summary: string;
+  averageMonthlyIncome: number;
+  averageMonthlyExpenses: number;
+  categoryGoals: CategoryGoal[];
+  overallRecommendations: string[];
+  idealBudgetBreakdown: {
+    needs: number;
+    wants: number;
+    savings: number;
+  };
+  generatedAt: string;
+}
+
+export interface BudgetGoals {
+  _id: string;
+  userId: string;
+  goals: BudgetGoalsAnalysis;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Classe para gerenciar a API
 class ApiClient {
   private client: AxiosInstance;
@@ -509,6 +546,35 @@ class ApiClient {
       return response.data.data;
     }
     throw new Error(response.data.message || 'Erro ao buscar análises de IA');
+  }
+
+  // Métodos para metas de orçamento
+  async getBudgetGoals(): Promise<BudgetGoals> {
+    const response = await this.client.get<ApiResponse<BudgetGoals>>('/api/budget-goals');
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar metas de orçamento');
+  }
+
+  async saveBudgetGoals(goals: BudgetGoalsAnalysis): Promise<BudgetGoals> {
+    const response = await this.client.post<ApiResponse<BudgetGoals>>('/api/budget-goals', {
+      goals
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao salvar metas de orçamento');
+  }
+
+  async deleteBudgetGoals(): Promise<void> {
+    const response = await this.client.delete<ApiResponse>('/api/budget-goals');
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao deletar metas de orçamento');
+    }
   }
 }
 
