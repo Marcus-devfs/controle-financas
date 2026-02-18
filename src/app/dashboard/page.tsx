@@ -7,18 +7,20 @@ import { CreditCardExpenses, CreditCardSummary } from "./CreditCardComponents";
 import { Transaction } from "@/lib/types";
 // Removed unused imports
 
+import { FixedCostCard } from "@/components/dashboard/FixedCostCard";
+
 export default function DashboardHome() {
   const userId = useUserId();
-  
-  const { 
+
+  const {
     transactions,
     categories,
     creditCards,
-    stats, 
-    loading, 
+    stats,
+    loading,
     currentMonth,
-    setCurrentMonth, 
-    getAvailableMonths 
+    setCurrentMonth,
+    getAvailableMonths
   } = useFinanceData(userId);
 
   // Removed unused AI suggestions state
@@ -46,7 +48,7 @@ export default function DashboardHome() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Visão geral</h1>
-        <MonthSelector 
+        <MonthSelector
           selectedMonth={currentMonth}
           onMonthChange={setCurrentMonth}
           availableMonths={allMonths}
@@ -54,27 +56,27 @@ export default function DashboardHome() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatCard 
-          title="Saldo do Mês" 
-          value={stats.balance} 
+        <StatCard
+          title="Saldo do Mês"
+          value={stats.balance}
           type="balance"
           subtitle={formatMonth(currentMonth)}
         />
-        <StatCard 
-          title="Total Receitas" 
-          value={stats.totalIncome} 
+        <StatCard
+          title="Total Receitas"
+          value={stats.totalIncome}
           type="income"
           subtitle={`Fixo: ${formatCurrency(stats.fixedIncome)}`}
         />
-        <StatCard 
-          title="Total Despesas" 
-          value={stats.totalExpenses} 
+        <StatCard
+          title="Total Despesas"
+          value={stats.totalExpenses}
           type="expense"
           subtitle={`Fixo: ${formatCurrency(stats.fixedExpenses)}`}
         />
-        <StatCard 
-          title="Investimentos" 
-          value={stats.totalInvestments} 
+        <StatCard
+          title="Investimentos"
+          value={stats.totalInvestments}
           type="investment"
           subtitle="Este mês"
         />
@@ -83,23 +85,31 @@ export default function DashboardHome() {
       {/* Cartões de crédito */}
       {stats.creditCardDebt > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
-          <StatCard 
-            title="Dívida Cartão" 
-            value={stats.creditCardDebt} 
+          <StatCard
+            title="Dívida Cartão"
+            value={stats.creditCardDebt}
             type="expense"
             subtitle="Pendente de pagamento"
           />
-          <StatCard 
-            title="Crédito Disponível" 
-            value={stats.availableCredit} 
+          <StatCard
+            title="Crédito Disponível"
+            value={stats.availableCredit}
             type="balance"
             subtitle="Limite disponível"
           />
         </div>
       )}
 
+      {/* Comprometimento da Renda */}
+      <div className="grid grid-cols-1">
+        <FixedCostCard
+          fixedCosts={stats.fixedExpenses}
+          fixedIncome={stats.fixedIncome}
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <IncomeExpenseBreakdown 
+        <IncomeExpenseBreakdown
           fixedIncome={stats.fixedIncome}
           variableIncome={stats.variableIncome}
           fixedExpenses={stats.fixedExpenses}
@@ -111,11 +121,11 @@ export default function DashboardHome() {
       {/* Gastos do Cartão */}
       {creditCards && creditCards.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-          <CreditCardExpenses 
+          <CreditCardExpenses
             currentMonthData={{ transactions, categories, creditCards }}
             creditCards={creditCards}
           />
-          <CreditCardSummary 
+          <CreditCardSummary
             creditCards={creditCards}
             currentMonthData={{ transactions, categories, creditCards }}
           />
@@ -125,11 +135,11 @@ export default function DashboardHome() {
   );
 }
 
-function MonthSelector({ 
-  selectedMonth, 
-  onMonthChange, 
-  availableMonths 
-}: { 
+function MonthSelector({
+  selectedMonth,
+  onMonthChange,
+  availableMonths
+}: {
   selectedMonth: string;
   onMonthChange: (month: string) => void;
   availableMonths: string[];
@@ -149,14 +159,14 @@ function MonthSelector({
   );
 }
 
-function StatCard({ 
-  title, 
-  value, 
-  type, 
-  subtitle 
-}: { 
-  title: string; 
-  value: number; 
+function StatCard({
+  title,
+  value,
+  type,
+  subtitle
+}: {
+  title: string;
+  value: number;
   type: 'balance' | 'income' | 'expense' | 'investment';
   subtitle: string;
 }) {
@@ -196,6 +206,17 @@ function IncomeExpenseBreakdown({
   fixedExpenses: number;
   variableExpenses: number;
 }) {
+  const totalIncome = fixedIncome + variableIncome;
+  // Folga é o que sobra da renda total após pagar os custos fixos
+  // Disponível para gastos variáveis + investimentos/poupança
+  const slack = totalIncome - fixedExpenses;
+
+  // Função auxiliar para calcular porcentagem em relação à Renda Total
+  const calculatePercentage = (value: number) => {
+    if (totalIncome === 0) return 0;
+    return (value / totalIncome) * 100;
+  };
+
   return (
     <div className="card p-6 animate-fade-in">
       <h3 className="text-lg font-semibold mb-4">Receitas vs Despesas</h3>
@@ -203,53 +224,88 @@ function IncomeExpenseBreakdown({
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Receitas Fixas</span>
-            <span className="text-green-600">{formatCurrency(fixedIncome)}</span>
+            <span className="text-green-600 font-medium">
+              {formatCurrency(fixedIncome)}
+              <span className="text-xs text-muted-foreground ml-1">({calculatePercentage(fixedIncome).toFixed(1)}%)</span>
+            </span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
-            <div 
-              className="bg-green-500 h-2 rounded-full" 
-              style={{ width: `${Math.min(100, (fixedIncome / (fixedIncome + variableIncome + fixedExpenses + variableExpenses)) * 100)}%` }}
+            <div
+              className="bg-green-500 h-2 rounded-full"
+              style={{ width: `${Math.min(100, calculatePercentage(fixedIncome))}%` }}
             ></div>
           </div>
         </div>
-        
+
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Receitas Variáveis</span>
-            <span className="text-green-600">{formatCurrency(variableIncome)}</span>
+            <span className="text-green-600 font-medium">
+              {formatCurrency(variableIncome)}
+              <span className="text-xs text-muted-foreground ml-1">({calculatePercentage(variableIncome).toFixed(1)}%)</span>
+            </span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
-            <div 
-              className="bg-green-400 h-2 rounded-full" 
-              style={{ width: `${Math.min(100, (variableIncome / (fixedIncome + variableIncome + fixedExpenses + variableExpenses)) * 100)}%` }}
+            <div
+              className="bg-green-400 h-2 rounded-full"
+              style={{ width: `${Math.min(100, calculatePercentage(variableIncome))}%` }}
             ></div>
           </div>
         </div>
-        
+
+        <div className="pt-2 border-t border-dashed border-gray-200"></div>
+
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Despesas Fixas</span>
-            <span className="text-red-600">{formatCurrency(fixedExpenses)}</span>
+            <span className="text-red-600 font-medium">
+              {formatCurrency(fixedExpenses)}
+              <span className="text-xs text-muted-foreground ml-1">({calculatePercentage(fixedExpenses).toFixed(1)}%)</span>
+            </span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
-            <div 
-              className="bg-red-500 h-2 rounded-full" 
-              style={{ width: `${Math.min(100, (fixedExpenses / (fixedIncome + variableIncome + fixedExpenses + variableExpenses)) * 100)}%` }}
+            <div
+              className="bg-red-500 h-2 rounded-full"
+              style={{ width: `${Math.min(100, calculatePercentage(fixedExpenses))}%` }}
             ></div>
           </div>
         </div>
-        
+
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Despesas Variáveis</span>
-            <span className="text-red-600">{formatCurrency(variableExpenses)}</span>
+            <span className="text-red-600 font-medium">
+              {formatCurrency(variableExpenses)}
+              <span className="text-xs text-muted-foreground ml-1">({calculatePercentage(variableExpenses).toFixed(1)}%)</span>
+            </span>
           </div>
           <div className="w-full bg-foreground/10 rounded-full h-2">
-            <div 
-              className="bg-red-400 h-2 rounded-full" 
-              style={{ width: `${Math.min(100, (variableExpenses / (fixedIncome + variableIncome + fixedExpenses + variableExpenses)) * 100)}%` }}
+            <div
+              className="bg-red-400 h-2 rounded-full"
+              style={{ width: `${Math.min(100, calculatePercentage(variableExpenses))}%` }}
             ></div>
           </div>
+        </div>
+
+        <div className="pt-2 border-t border-dashed border-gray-200"></div>
+
+        <div>
+          <div className="flex justify-between text-sm mb-2">
+            <span className="font-medium text-blue-700" title="Renda Total - Despesas Fixas">Folga (Disp. p/ Variáveis)</span>
+            <span className="text-blue-600 font-bold">
+              {formatCurrency(slack)}
+              <span className="text-xs text-muted-foreground ml-1">({calculatePercentage(slack).toFixed(1)}%)</span>
+            </span>
+          </div>
+          <div className="w-full bg-foreground/10 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, calculatePercentage(slack)))}%` }}
+            ></div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            * Valor disponível após custos fixos.
+          </p>
         </div>
       </div>
     </div>
@@ -260,7 +316,7 @@ function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
   const allTransactions = transactions
     .map((t: Transaction) => ({
       ...t,
-      displayType: t.isFixed ? 
+      displayType: t.isFixed ?
         (t.type === 'income' ? 'Receita Fixa' : t.type === 'expense' ? 'Despesa Fixa' : 'Investimento') :
         (t.type === 'income' ? 'Receita Variável' : t.type === 'expense' ? 'Despesa Variável' : 'Investimento')
     }))
@@ -280,11 +336,10 @@ function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
                 <div className="text-sm font-medium">{transaction.description}</div>
                 <div className="text-xs text-foreground/60">{transaction.type}</div>
               </div>
-              <div className={`text-sm font-medium ${
-                transaction.type.includes('Receita') || transaction.type.includes('Investimento')
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              }`}>
+              <div className={`text-sm font-medium ${transaction.type.includes('Receita') || transaction.type.includes('Investimento')
+                ? 'text-green-600'
+                : 'text-red-600'
+                }`}>
                 {formatCurrency(transaction.amount)}
               </div>
             </div>
