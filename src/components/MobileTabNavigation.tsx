@@ -41,6 +41,12 @@ const tabs: TabItem[] = [
     label: "Relatórios",
     icon: "📊",
     activeIcon: "📊"
+  },
+  {
+    href: "/dashboard/importar",
+    label: "Importar",
+    icon: "📥",
+    activeIcon: "📥"
   }
 ];
 

@@ -15,6 +15,7 @@ export default function TransacoesPage() {
   const [activeTab, setActiveTab] = useState<'income' | 'expense'>('expense');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
 
   const { 
     transactions,
@@ -56,7 +57,13 @@ export default function TransacoesPage() {
     // Filtro por descrição (busca)
     const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
 
-    return typeMatch && categoryMatch && searchMatch;
+    // Filtro por status de pagamento
+    const paidMatch =
+      filterPaid === 'all' ? true :
+      filterPaid === 'paid' ? t.isPaid === true :
+      t.isPaid !== true;
+
+    return typeMatch && categoryMatch && searchMatch && paidMatch;
   });
 
   const allTransactions = filteredTransactions.map((t: Transaction) => ({
@@ -182,11 +189,27 @@ export default function TransacoesPage() {
               ))}
           </select>
         </div>
+        <div className="flex-1">
+          <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+            <span className="sm:hidden">✓</span>
+            <span className="hidden sm:inline">✓ Filtrar por pagamento</span>
+          </label>
+          <select
+            value={filterPaid}
+            onChange={(e) => setFilterPaid(e.target.value as 'all' | 'paid' | 'unpaid')}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
+          >
+            <option value="all">Todos</option>
+            <option value="paid">Pagos</option>
+            <option value="unpaid">Não pagos</option>
+          </select>
+        </div>
         <div className="flex items-end">
           <button
             onClick={() => {
               setSearchTerm('');
               setSelectedCategory('');
+              setFilterPaid('all');
             }}
             className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >
