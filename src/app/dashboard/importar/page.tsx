@@ -10,9 +10,28 @@ interface ImportItem {
   amount: number;
   date: string;
   type: "income" | "expense";
+  isFixed: boolean;
   suggestedCategory: string;
   categoryId: string;
   selected: boolean;
+}
+
+function sanitizeForApi(item: ImportItem): { description: string; amount: number; date: string; type: "income" | "expense"; month: string } | null {
+  // description: 2-100 chars
+  const description = item.description.trim().substring(0, 100);
+  if (description.length < 2) return null;
+
+  // amount: must be > 0.01
+  const amount = Math.round(item.amount * 100) / 100;
+  if (amount < 0.01) return null;
+
+  // date: must be YYYY-MM-DD
+  const dateMatch = item.date.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!dateMatch) return null;
+  const date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+  const month = `${dateMatch[1]}-${dateMatch[2]}`;
+
+  return { description, amount, date, type: item.type, month };
 }
 
 export default function ImportarPage() {
@@ -21,7 +40,7 @@ export default function ImportarPage() {
   const [parsing, setParsing] = useState(false);
   const [items, setItems] = useState<ImportItem[]>([]);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ success: number; errors: number; skipped: number } | null>(null);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [sourceType, setSourceType] = useState<"account" | "card">("account");
@@ -71,6 +90,7 @@ export default function ImportarPage() {
         const importItems: ImportItem[] = (data.transactions || []).map((t: any) => ({
           ...t,
           categoryId: findCategoryId(t.suggestedCategory, t.type),
+          isFixed: false,
           selected: true,
         }));
 
@@ -113,36 +133,37 @@ export default function ImportarPage() {
     const selected = items.filter((i) => i.selected);
     if (!selected.length) return;
 
+    const withCategory = selected.filter((i) => i.categoryId);
+    const skipped = selected.length - withCategory.length;
+
     setImporting(true);
     let success = 0;
     let errors = 0;
 
-    for (const item of selected) {
+    for (const item of withCategory) {
       try {
-        const month = item.date.substring(0, 7);
+        const sanitized = sanitizeForApi(item);
+        if (!sanitized) { errors++; continue; }
         await apiClient.createTransaction({
-          description: item.description,
-          amount: item.amount,
-          date: item.date,
-          type: item.type,
+          ...sanitized,
           categoryId: item.categoryId,
           isPaid: true,
-          isFixed: false,
+          isFixed: item.isFixed,
           isRecurring: false,
-          month,
           ...(sourceType === "card" && selectedCardId ? { creditCardId: selectedCardId } : {}),
         });
         success++;
-      } catch {
+      } catch (err) {
+        console.error("Erro ao importar transação:", item.description, err);
         errors++;
       }
     }
 
-    setImportResult({ success, errors });
+    setImportResult({ success, errors, skipped });
     setImporting(false);
 
     if (success > 0) {
-      setItems((prev) => prev.filter((i) => !i.selected));
+      setItems((prev) => prev.filter((i) => !i.selected || !i.categoryId));
     }
   };
 
@@ -268,13 +289,18 @@ export default function ImportarPage() {
       {importResult && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
           <span className="text-green-500 text-lg">✅</span>
-          <div>
+          <div className="space-y-1">
             <p className="font-medium text-green-700 text-sm">
               {importResult.success} {importResult.success === 1 ? "transação importada" : "transações importadas"} com sucesso
             </p>
+            {importResult.skipped > 0 && (
+              <p className="text-amber-600 text-sm">
+                {importResult.skipped} {importResult.skipped === 1 ? "transação ignorada" : "transações ignoradas"} — sem categoria atribuída
+              </p>
+            )}
             {importResult.errors > 0 && (
-              <p className="text-red-600 text-sm mt-1">
-                {importResult.errors} {importResult.errors === 1 ? "transação com erro" : "transações com erro"}
+              <p className="text-red-600 text-sm">
+                {importResult.errors} {importResult.errors === 1 ? "transação com erro" : "transações com erro"} ao salvar
               </p>
             )}
           </div>
@@ -366,6 +392,7 @@ export default function ImportarPage() {
                     <th className="p-3 text-left text-sm font-medium">Data</th>
                     <th className="p-3 text-left text-sm font-medium">Descrição</th>
                     <th className="p-3 text-left text-sm font-medium">Tipo</th>
+                    <th className="p-3 text-left text-sm font-medium">Natureza</th>
                     <th className="p-3 text-left text-sm font-medium">Categoria</th>
                     <th className="p-3 text-right text-sm font-medium">Valor</th>
                     <th className="p-3 text-center text-sm font-medium w-20">Ação</th>
@@ -415,6 +442,18 @@ export default function ImportarPage() {
                           >
                             <option value="income">Receita</option>
                             <option value="expense">Despesa</option>
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <select
+                            value={item.isFixed ? "fixed" : "variable"}
+                            onChange={(e) =>
+                              updateItem(item.id, { isFixed: e.target.value === "fixed" })
+                            }
+                            className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer bg-gray-100 text-gray-700"
+                          >
+                            <option value="variable">Variável</option>
+                            <option value="fixed">Fixa</option>
                           </select>
                         </td>
                         <td className="p-3">
@@ -536,6 +575,14 @@ function MobileImportCard({
         >
           <option value="income">Receita</option>
           <option value="expense">Despesa</option>
+        </select>
+        <select
+          value={item.isFixed ? "fixed" : "variable"}
+          onChange={(e) => onChange({ isFixed: e.target.value === "fixed" })}
+          className="text-xs px-2 py-1 rounded-full font-medium border-0 bg-gray-100 text-gray-700"
+        >
+          <option value="variable">Variável</option>
+          <option value="fixed">Fixa</option>
         </select>
         <select
           value={item.categoryId}

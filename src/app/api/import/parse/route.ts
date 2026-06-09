@@ -15,6 +15,21 @@ const buildPrompt = (categoryNames: string) =>
 {"transactions":[{"description":"...","amount":0.00,"date":"YYYY-MM-DD","type":"expense","suggestedCategory":"..."}]}
 Rules: amount always positive; type="income" for credits/deposits, type="expense" for debits/purchases; date in YYYY-MM-DD; suggestedCategory from: ${categoryNames || 'Alimentação,Transporte,Moradia,Saúde,Educação,Lazer,Outros'}; skip balances/totals/headers.`;
 
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const retryable = err.status === 503 || err.status === 429;
+      if (!retryable || attempt === maxAttempts) throw err;
+      const delay = attempt * 2000; // 2s, 4s
+      console.log(`Attempt ${attempt} failed (${err.status}), retrying in ${delay}ms…`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 function extractJsonBlock(text: string): string | null {
   // 1. Markdown code block: ```json ... ``` or ``` ... ```
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -120,23 +135,23 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    let result;
     const prompt = buildPrompt(categoryNames);
 
+    let contents: Parameters<typeof model.generateContent>[0];
     if (fileName.endsWith('.pdf')) {
       const bytes = await file.arrayBuffer();
       const base64 = Buffer.from(bytes).toString('base64');
-      result = await model.generateContent([
+      contents = [
         { text: prompt },
         { inlineData: { mimeType: 'application/pdf', data: base64 } }
-      ]);
+      ];
     } else {
       const text = await file.text();
       const fileType = fileName.endsWith('.ofx') || fileName.endsWith('.qfx') ? 'OFX/QFX' : 'CSV';
-      result = await model.generateContent(
-        `${prompt}\n\nConteúdo do arquivo ${fileType}:\n${text.substring(0, 20000)}`
-      );
+      contents = `${prompt}\n\nConteúdo do arquivo ${fileType}:\n${text.substring(0, 20000)}`;
     }
+
+    const result = await callWithRetry(() => model.generateContent(contents));
 
     const responseText = result.response.text();
     console.log('Gemini response preview:', responseText.substring(0, 500));
@@ -174,11 +189,14 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao processar arquivo de importação:', error);
     const isQuota = error.status === 429;
+    const isOverload = error.status === 503;
     const isKeyInvalid = error.status === 400 && error.message?.includes('API_KEY');
     const isKeyLeaked = error.status === 403;
     const status = isQuota ? 429 : 500;
     const message = isQuota
       ? 'Limite da API Gemini atingido. Aguarde alguns minutos e tente novamente.'
+      : isOverload
+      ? 'API Gemini sobrecarregada no momento. Tente novamente em alguns segundos.'
       : isKeyInvalid
       ? 'Chave da API Gemini expirada ou inválida. Gere uma nova chave em aistudio.google.com.'
       : isKeyLeaked
