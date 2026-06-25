@@ -207,6 +207,72 @@ export interface BudgetGoals {
   updatedAt: string;
 }
 
+export interface InvestmentAccount {
+  _id: string;
+  userId: string;
+  name: string;
+  institution: string;
+  cdiPercentage: number;
+  color: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvestmentMovement {
+  _id: string;
+  userId: string;
+  accountId: string;
+  type: 'deposit' | 'withdrawal' | 'snapshot';
+  amount: number;
+  date: string;
+  description: string;
+  netBalance?: number;
+  investmentStartDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvestmentLotSummary {
+  depositDate: string;
+  principal: number;
+  grossYield: number;
+  daysHeld: number;
+  irRate: number;
+  estimatedIr: number;
+}
+
+export interface AccountPortfolioSummary {
+  accountId: string;
+  name: string;
+  institution: string;
+  cdiPercentage: number;
+  color: string;
+  currentBalance: number;
+  principal: number;
+  grossYield: number;
+  estimatedIr: number;
+  netBalance: number;
+  totalDeposits: number;
+  totalWithdrawals: number;
+  todayYield: number;
+  monthYield: number;
+  lots: InvestmentLotSummary[];
+}
+
+export interface PortfolioSummary {
+  totalBalance: number;
+  totalPrincipal: number;
+  totalGrossYield: number;
+  totalEstimatedIr: number;
+  totalNetBalance: number;
+  todayYield: number;
+  monthYield: number;
+  accounts: AccountPortfolioSummary[];
+  lastCdiUpdate: string | null;
+  currentCdiRate: number | null;
+}
+
 // Classe para gerenciar a API
 class ApiClient {
   private client: AxiosInstance;
@@ -575,6 +641,90 @@ class ApiClient {
     if (!response.data.success) {
       throw new Error(response.data.message || 'Erro ao deletar metas de orçamento');
     }
+  }
+
+  // Métodos para investimentos (carteira CDI)
+  async getPortfolio(): Promise<PortfolioSummary> {
+    const response = await this.client.get<ApiResponse<PortfolioSummary>>('/api/investment-accounts/portfolio', {
+      timeout: 60000,
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar carteira');
+  }
+
+  async getInvestmentAccounts(): Promise<InvestmentAccount[]> {
+    const response = await this.client.get<ApiResponse<InvestmentAccount[]>>('/api/investment-accounts');
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar contas de investimento');
+  }
+
+  async createInvestmentAccount(account: Omit<InvestmentAccount, '_id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<InvestmentAccount> {
+    const response = await this.client.post<ApiResponse<InvestmentAccount>>('/api/investment-accounts', account);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao criar conta de investimento');
+  }
+
+  async updateInvestmentAccount(id: string, account: Partial<InvestmentAccount>): Promise<InvestmentAccount> {
+    const response = await this.client.put<ApiResponse<InvestmentAccount>>(`/api/investment-accounts/${id}`, account);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao atualizar conta de investimento');
+  }
+
+  async deleteInvestmentAccount(id: string): Promise<void> {
+    const response = await this.client.delete<ApiResponse>(`/api/investment-accounts/${id}`);
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao excluir conta de investimento');
+    }
+  }
+
+  async getInvestmentMovements(accountId: string): Promise<InvestmentMovement[]> {
+    const response = await this.client.get<ApiResponse<InvestmentMovement[]>>(`/api/investment-accounts/${accountId}/movements`);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar movimentações');
+  }
+
+  async createInvestmentMovement(accountId: string, movement: Omit<InvestmentMovement, '_id' | 'userId' | 'accountId' | 'createdAt' | 'updatedAt'>): Promise<InvestmentMovement> {
+    const response = await this.client.post<ApiResponse<InvestmentMovement>>(`/api/investment-accounts/${accountId}/movements`, movement);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao registrar movimentação');
+  }
+
+  async deleteInvestmentMovement(movementId: string): Promise<void> {
+    const response = await this.client.delete<ApiResponse>(`/api/investment-accounts/movements/${movementId}`);
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao excluir movimentação');
+    }
+  }
+
+  async syncCdiRates(): Promise<{ count: number }> {
+    const response = await this.client.post<ApiResponse<{ count: number }>>('/api/investment-accounts/cdi/sync', {}, {
+      timeout: 90000,
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao sincronizar CDI');
   }
 }
 
