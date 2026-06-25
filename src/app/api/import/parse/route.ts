@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 8192,
-        // @ts-ignore — thinkingBudget: 0 disables reasoning mode for speed
+        // @ts-expect-error thinkingConfig is supported by Gemini API but not in SDK types yet
         thinkingConfig: { thinkingBudget: 0 }
       }
     });
