@@ -16,6 +16,7 @@ export default function TransacoesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [filterFixed, setFilterFixed] = useState<'all' | 'fixed' | 'variable'>('all');
 
   const { 
     transactions,
@@ -63,7 +64,13 @@ export default function TransacoesPage() {
       filterPaid === 'paid' ? t.isPaid === true :
       t.isPaid !== true;
 
-    return typeMatch && categoryMatch && searchMatch && paidMatch;
+    // Filtro por fixa/variável
+    const fixedMatch =
+      filterFixed === 'all' ? true :
+      filterFixed === 'fixed' ? t.isFixed === true :
+      t.isFixed !== true;
+
+    return typeMatch && categoryMatch && searchMatch && paidMatch && fixedMatch;
   });
 
   const allTransactions = filteredTransactions.map((t: Transaction) => ({
@@ -204,12 +211,28 @@ export default function TransacoesPage() {
             <option value="unpaid">Não pagos</option>
           </select>
         </div>
+        <div className="flex-1">
+          <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+            <span className="sm:hidden">📅</span>
+            <span className="hidden sm:inline">📅 Filtrar por fixa/variável</span>
+          </label>
+          <select
+            value={filterFixed}
+            onChange={(e) => setFilterFixed(e.target.value as 'all' | 'fixed' | 'variable')}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
+          >
+            <option value="all">Todas</option>
+            <option value="fixed">Fixas</option>
+            <option value="variable">Variáveis</option>
+          </select>
+        </div>
         <div className="flex items-end">
           <button
             onClick={() => {
               setSearchTerm('');
               setSelectedCategory('');
               setFilterPaid('all');
+              setFilterFixed('all');
             }}
             className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >

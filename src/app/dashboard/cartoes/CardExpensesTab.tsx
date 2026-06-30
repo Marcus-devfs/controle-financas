@@ -24,6 +24,7 @@ export function CardExpensesTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedCard, setSelectedCard] = useState('');
+  const [filterFixed, setFilterFixed] = useState<'all' | 'fixed' | 'variable'>('all');
 
   // Filtrar apenas transações que foram pagas com cartão
   const cardExpenses = currentMonthData.transactions
@@ -40,8 +41,14 @@ export function CardExpensesTab({
       
       // Filtro por descrição (busca)
       const searchMatch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Filtro por fixa/variável
+      const fixedMatch =
+        filterFixed === 'all' ? true :
+        filterFixed === 'fixed' ? t.isFixed === true :
+        t.isFixed !== true;
       
-      return categoryMatch && cardMatch && searchMatch;
+      return categoryMatch && cardMatch && searchMatch && fixedMatch;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -118,12 +125,28 @@ export function CardExpensesTab({
             ))}
           </select>
         </div>
+        <div className="flex-1">
+          <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+            <span className="sm:hidden">📅</span>
+            <span className="hidden sm:inline">📅 Filtrar por fixa/variável</span>
+          </label>
+          <select
+            value={filterFixed}
+            onChange={(e) => setFilterFixed(e.target.value as 'all' | 'fixed' | 'variable')}
+            className="w-full px-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
+          >
+            <option value="all">Todas</option>
+            <option value="fixed">Fixas</option>
+            <option value="variable">Variáveis</option>
+          </select>
+        </div>
         <div className="flex items-end">
           <button
             onClick={() => {
               setSearchTerm('');
               setSelectedCategory('');
               setSelectedCard('');
+              setFilterFixed('all');
             }}
             className="px-3 py-2 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors w-full sm:w-auto"
           >
