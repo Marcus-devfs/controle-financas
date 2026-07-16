@@ -10,6 +10,7 @@ import {
   InvestmentLotSummary
 } from "@/lib/api";
 import { formatCurrencyWhileTyping, parseCurrencyInputNew } from "@/lib/utils";
+import { InvestmentDashboard } from "./InvestmentDashboard";
 
 const IR_TABLE = [
   { period: "Até 180 dias", rate: "22,5%" },
@@ -39,6 +40,7 @@ export default function InvestimentosPage() {
     refresh
   } = useInvestments();
 
+  const [activeTab, setActiveTab] = useState<'resumo' | 'aplicacoes'>('resumo');
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<InvestmentAccount | null>(null);
   const [showMovementModal, setShowMovementModal] = useState(false);
@@ -101,109 +103,156 @@ export default function InvestimentosPage() {
         </div>
       )}
 
-      {portfolio && (
-        <PortfolioSummaryCards portfolio={portfolio} />
-      )}
+      {/* Abas */}
+      <div className="flex border-b border-border">
+        <button
+          onClick={() => setActiveTab('resumo')}
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
+            activeTab === 'resumo'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="sm:hidden">📊</span>
+          <span className="hidden sm:inline">📊 Resumo</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('aplicacoes')}
+          className={`px-3 sm:px-4 py-2 font-medium text-sm transition flex-1 sm:flex-none ${
+            activeTab === 'aplicacoes'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="sm:hidden">💼</span>
+          <span className="hidden sm:inline">💼 Aplicações</span>
+        </button>
+      </div>
 
-      {accounts.length === 0 ? (
-        <EmptyState onCreateAccount={() => setShowAccountModal(true)} />
-      ) : (
+      {activeTab === 'resumo' && (
         <>
-          {hasNoMovements && (
-            <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="font-medium text-blue-800 dark:text-blue-300">
-                    Próximo passo: registrar seus saldos atuais
-                  </p>
-                  <p className="text-sm text-blue-700/80 dark:text-blue-400/80 mt-1">
-                    Clique em <strong>Importar saldo</strong> em cada conta e use os valores bruto e líquido do app do banco (Itaú, Nubank, etc.).
-                  </p>
-                </div>
-              </div>
+          {portfolio && accounts.length > 0 ? (
+            <InvestmentDashboard portfolio={portfolio} />
+          ) : accounts.length === 0 ? (
+            <EmptyState onCreateAccount={() => {
+              setActiveTab('aplicacoes');
+              setShowAccountModal(true);
+            }} />
+          ) : (
+            <div className="rounded-xl border border-black/10 p-8 text-center text-foreground/60">
+              Carregando resumo da carteira...
             </div>
-          )}
-
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Minhas Contas ({displayAccounts.length})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayAccounts.map(account => (
-                <AccountCard
-                  key={account.accountId}
-                  account={account}
-                  isSelected={selectedAccountId === account.accountId}
-                  onSelect={() => setSelectedAccountId(
-                    selectedAccountId === account.accountId ? null : account.accountId
-                  )}
-                  onEdit={() => {
-                    const acc = accounts.find(a => a._id === account.accountId);
-                    if (acc) { setEditingAccount(acc); setShowAccountModal(true); }
-                  }}
-                  onDelete={async () => {
-                    if (window.confirm(`Excluir "${account.name}" e todas as movimentações?`)) {
-                      await deleteAccount(account.accountId);
-                    }
-                  }}
-                  onDeposit={() => {
-                    setSelectedAccountId(account.accountId);
-                    setMovementType('deposit');
-                    setBankImportMode(false);
-                    setShowMovementModal(true);
-                  }}
-                  onImportBank={() => {
-                    setSelectedAccountId(account.accountId);
-                    setMovementType('deposit');
-                    setBankImportMode(true);
-                    setShowMovementModal(true);
-                  }}
-                  onWithdraw={() => {
-                    setSelectedAccountId(account.accountId);
-                    setMovementType('withdrawal');
-                    setShowMovementModal(true);
-                  }}
-                  onViewLots={() => {
-                    setLotsAccount(account);
-                    setShowLotsModal(true);
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {selectedAccountId && selectedSummary && (
-            <MovementsSection
-              account={selectedSummary}
-              movements={movements}
-              onImportBank={() => { setMovementType('deposit'); setBankImportMode(true); setShowMovementModal(true); }}
-              onAddDeposit={() => { setMovementType('deposit'); setBankImportMode(false); setShowMovementModal(true); }}
-              onAddWithdrawal={() => { setMovementType('withdrawal'); setShowMovementModal(true); }}
-              onDeleteMovement={async (id) => {
-                if (window.confirm('Excluir esta movimentação?')) {
-                  await deleteMovement(id);
-                }
-              }}
-            />
-          )}
-
-          {!selectedAccountId && displayAccounts.length > 0 && (
-            <p className="text-sm text-foreground/50 text-center">
-              Clique em uma conta para ver o histórico de movimentações
-            </p>
           )}
         </>
       )}
 
-      <IrTableSection />
+      {activeTab === 'aplicacoes' && (
+        <>
+          {portfolio && (
+            <PortfolioSummaryCards portfolio={portfolio} />
+          )}
 
-      {portfolio?.lastCdiUpdate ? (
-        <p className="text-xs text-foreground/40 text-center">
-          CDI atualizado em {new Date(portfolio.lastCdiUpdate + 'T12:00:00').toLocaleDateString('pt-BR')}
-          {portfolio.currentCdiRate !== null && ` · Taxa diária: ${portfolio.currentCdiRate.toFixed(6)}%`}
-        </p>
-      ) : accounts.length > 0 && (
-        <p className="text-xs text-amber-600 text-center">
-          CDI ainda não sincronizado — clique em &quot;Atualizar CDI&quot; para buscar as taxas do Banco Central
-        </p>
+          {accounts.length === 0 ? (
+            <EmptyState onCreateAccount={() => setShowAccountModal(true)} />
+          ) : (
+            <>
+              {hasNoMovements && (
+                <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-blue-800 dark:text-blue-300">
+                        Próximo passo: registrar seus saldos atuais
+                      </p>
+                      <p className="text-sm text-blue-700/80 dark:text-blue-400/80 mt-1">
+                        Clique em <strong>Importar saldo</strong> em cada conta e use os valores bruto e líquido do app do banco (Itaú, Nubank, etc.).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h2 className="text-lg font-semibold mb-3">Minhas Contas ({displayAccounts.length})</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayAccounts.map(account => (
+                    <AccountCard
+                      key={account.accountId}
+                      account={account}
+                      isSelected={selectedAccountId === account.accountId}
+                      onSelect={() => setSelectedAccountId(
+                        selectedAccountId === account.accountId ? null : account.accountId
+                      )}
+                      onEdit={() => {
+                        const acc = accounts.find(a => a._id === account.accountId);
+                        if (acc) { setEditingAccount(acc); setShowAccountModal(true); }
+                      }}
+                      onDelete={async () => {
+                        if (window.confirm(`Excluir "${account.name}" e todas as movimentações?`)) {
+                          await deleteAccount(account.accountId);
+                        }
+                      }}
+                      onDeposit={() => {
+                        setSelectedAccountId(account.accountId);
+                        setMovementType('deposit');
+                        setBankImportMode(false);
+                        setShowMovementModal(true);
+                      }}
+                      onImportBank={() => {
+                        setSelectedAccountId(account.accountId);
+                        setMovementType('deposit');
+                        setBankImportMode(true);
+                        setShowMovementModal(true);
+                      }}
+                      onWithdraw={() => {
+                        setSelectedAccountId(account.accountId);
+                        setMovementType('withdrawal');
+                        setShowMovementModal(true);
+                      }}
+                      onViewLots={() => {
+                        setLotsAccount(account);
+                        setShowLotsModal(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {selectedAccountId && selectedSummary && (
+                <MovementsSection
+                  account={selectedSummary}
+                  movements={movements}
+                  onImportBank={() => { setMovementType('deposit'); setBankImportMode(true); setShowMovementModal(true); }}
+                  onAddDeposit={() => { setMovementType('deposit'); setBankImportMode(false); setShowMovementModal(true); }}
+                  onAddWithdrawal={() => { setMovementType('withdrawal'); setShowMovementModal(true); }}
+                  onDeleteMovement={async (id) => {
+                    if (window.confirm('Excluir esta movimentação?')) {
+                      await deleteMovement(id);
+                    }
+                  }}
+                />
+              )}
+
+              {!selectedAccountId && displayAccounts.length > 0 && (
+                <p className="text-sm text-foreground/50 text-center">
+                  Clique em uma conta para ver o histórico de movimentações
+                </p>
+              )}
+            </>
+          )}
+
+          <IrTableSection />
+
+          {portfolio?.lastCdiUpdate ? (
+            <p className="text-xs text-foreground/40 text-center">
+              CDI atualizado em {new Date(portfolio.lastCdiUpdate + 'T12:00:00').toLocaleDateString('pt-BR')}
+              {portfolio.currentCdiRate !== null && ` · Taxa diária: ${portfolio.currentCdiRate.toFixed(6)}%`}
+            </p>
+          ) : accounts.length > 0 && (
+            <p className="text-xs text-amber-600 text-center">
+              CDI ainda não sincronizado — clique em &quot;Atualizar CDI&quot; para buscar as taxas do Banco Central
+            </p>
+          )}
+        </>
       )}
 
       {showAccountModal && (
