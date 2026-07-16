@@ -16,6 +16,7 @@ import {
 import { PortfolioSummary } from "@/lib/api";
 import { formatCurrency } from "@/lib/data";
 import { PieChart } from "@/components/PieChart";
+import { formatCurrencyWhileTyping, parseCurrencyInputNew } from "@/lib/utils";
 import {
   buildAllocationChartData,
   buildYieldByAccountChartData,
@@ -28,6 +29,8 @@ interface InvestmentDashboardProps {
   portfolio: PortfolioSummary;
 }
 
+const CONTRIBUTION_PRESETS = [500, 1000, 2000, 5000];
+
 function formatPct(value: number, digits = 2): string {
   return `${value.toFixed(digits)}%`;
 }
@@ -35,6 +38,13 @@ function formatPct(value: number, digits = 2): string {
 export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
   const [selectedAccountId, setSelectedAccountId] = useState<string | "all">("all");
   const [projectionMonths, setProjectionMonths] = useState(12);
+  const [contributionInput, setContributionInput] = useState("");
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false);
+
+  const monthlyContribution = useMemo(
+    () => parseCurrencyInputNew(contributionInput) || 0,
+    [contributionInput]
+  );
 
   const filteredAccounts = useMemo(
     () => filterAccounts(portfolio.accounts, selectedAccountId),
@@ -47,8 +57,12 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
   );
 
   const projections = useMemo(
-    () => computeProjections(filteredAccounts, metrics, projectionMonths),
-    [filteredAccounts, metrics, projectionMonths]
+    () =>
+      computeProjections(filteredAccounts, metrics, projectionMonths, {
+        monthlyContribution,
+        includeCurrentMonth,
+      }),
+    [filteredAccounts, metrics, projectionMonths, monthlyContribution, includeCurrentMonth]
   );
 
   const allocationData = useMemo(
@@ -62,6 +76,7 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
   );
 
   const hasBalance = metrics.totalBalance > 0;
+  const hasSimulation = monthlyContribution > 0;
 
   return (
     <div className="space-y-6">
@@ -105,12 +120,99 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
             onClick={() => {
               setSelectedAccountId("all");
               setProjectionMonths(12);
+              setContributionInput("");
+              setIncludeCurrentMonth(false);
             }}
             className="px-3 py-2 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 rounded-lg transition-colors w-full sm:w-auto"
           >
             Limpar filtros
           </button>
         </div>
+      </div>
+
+      {/* Simulação de aportes */}
+      <div className="rounded-xl border border-black/10 dark:border-white/10 p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Simular aportes mensais</h2>
+            <p className="text-xs sm:text-sm text-foreground/60 mt-1">
+              Informe quanto pretende investir por mês. A projeção e o gráfico são recalculados na hora.
+            </p>
+          </div>
+          {hasSimulation && (
+            <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 self-start">
+              Simulação ativa
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 max-w-sm">
+            <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+              Aporte mensal (R$)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
+                R$
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={contributionInput}
+                onChange={(e) =>
+                  setContributionInput(formatCurrencyWhileTyping(e.target.value))
+                }
+                className="w-full pl-10 pr-3 py-2 rounded-lg border border-black/10 bg-background text-foreground text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1">
+            <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
+              Atalhos
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CONTRIBUTION_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() =>
+                    setContributionInput(
+                      formatCurrencyWhileTyping(String(Math.round(preset * 100)))
+                    )
+                  }
+                  className={`px-3 py-2 text-xs sm:text-sm rounded-lg border transition-colors ${
+                    monthlyContribution === preset
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-black/10 hover:bg-muted/50"
+                  }`}
+                >
+                  {formatCurrency(preset)}
+                </button>
+              ))}
+              {hasSimulation && (
+                <button
+                  type="button"
+                  onClick={() => setContributionInput("")}
+                  className="px-3 py-2 text-xs sm:text-sm rounded-lg border border-black/10 hover:bg-muted/50 text-foreground/60"
+                >
+                  Zerar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeCurrentMonth}
+            onChange={(e) => setIncludeCurrentMonth(e.target.checked)}
+            className="rounded border-black/20"
+          />
+          Incluir aporte também neste mês
+        </label>
       </div>
 
       {!hasBalance ? (
@@ -166,7 +268,9 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
 
           {/* Projeções resumo */}
           <div>
-            <h2 className="text-lg font-semibold mb-3">Projeções</h2>
+            <h2 className="text-lg font-semibold mb-3">
+              Projeções{hasSimulation ? " (com aportes)" : ""}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <ProjectionCard
                 title="Restante do mês"
@@ -181,25 +285,67 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
                 hint="Já acumulado + projeção"
               />
               <ProjectionCard
-                title="Próximos 12 meses"
+                title={`Rendimento em ${projectionMonths} meses`}
                 gross={projections.yearGross}
                 net={projections.yearNet}
-                hint="Capitalização diária (252 DU)"
+                hint={
+                  hasSimulation
+                    ? `Só juros (sem contar aportes)`
+                    : "Capitalização diária"
+                }
               />
               <div className="rounded-xl border border-black/10 dark:border-white/10 p-4">
-                <div className="text-xs text-foreground/60 mb-1">Saldo bruto projetado (1 ano)</div>
+                <div className="text-xs text-foreground/60 mb-1">
+                  Saldo bruto projetado ({projectionMonths}m)
+                </div>
                 <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
                   {formatCurrency(projections.yearEndBalance)}
                 </div>
                 <div className="text-xs text-foreground/40 mt-2">
-                  Atual {formatCurrency(metrics.totalBalance)} → +
-                  {formatCurrency(projections.yearGross)}
+                  Atual {formatCurrency(metrics.totalBalance)}
+                  {hasSimulation && (
+                    <>
+                      {" · "}Aportes {formatCurrency(projections.totalContributed)}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
+
+            {hasSimulation && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                <div className="rounded-xl border border-dashed border-black/15 dark:border-white/15 p-4">
+                  <div className="text-xs text-foreground/60 mb-1">Total aportado</div>
+                  <div className="text-lg font-semibold">
+                    {formatCurrency(projections.totalContributed)}
+                  </div>
+                  <div className="text-xs text-foreground/40 mt-1">
+                    {formatCurrency(monthlyContribution)}/mês
+                  </div>
+                </div>
+                <div className="rounded-xl border border-dashed border-black/15 dark:border-white/15 p-4">
+                  <div className="text-xs text-foreground/60 mb-1">Saldo sem aportes</div>
+                  <div className="text-lg font-semibold text-foreground/70">
+                    {formatCurrency(projections.yearEndBalanceWithoutContribution)}
+                  </div>
+                  <div className="text-xs text-foreground/40 mt-1">Só o saldo atual rendendo</div>
+                </div>
+                <div className="rounded-xl border border-dashed border-emerald-300/60 dark:border-emerald-700/50 p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
+                  <div className="text-xs text-foreground/60 mb-1">Juros extras dos aportes</div>
+                  <div className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(projections.extraFromContributions)}
+                  </div>
+                  <div className="text-xs text-foreground/40 mt-1">
+                    Além do principal investido
+                  </div>
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-foreground/40 mt-2">
-              Projeções usam a taxa CDI atual e o % CDI médio da carteira filtrada. IR líquido
-              aplica a alíquota média estimada dos lotes. Valores futuros são estimativas.
+              Projeções usam a taxa CDI atual e o % CDI médio da carteira filtrada. Aportes entram
+              no início de cada mês e passam a render. IR líquido aplica a alíquota média estimada.
+              Valores futuros são estimativas.
             </p>
           </div>
 
@@ -213,7 +359,11 @@ export function InvestmentDashboard({ portfolio }: InvestmentDashboardProps) {
             <YieldByAccountChart data={yieldByAccount} />
           </div>
 
-          <MonthlyProjectionChart data={projections.monthly} />
+          <MonthlyProjectionChart
+            data={projections.monthly}
+            hasSimulation={hasSimulation}
+            monthlyContribution={monthlyContribution}
+          />
 
           {/* Snapshot rápido */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -344,20 +494,33 @@ function YieldByAccountChart({
 
 function MonthlyProjectionChart({
   data,
+  hasSimulation,
+  monthlyContribution,
 }: {
   data: ReturnType<typeof computeProjections>["monthly"];
+  hasSimulation: boolean;
+  monthlyContribution: number;
 }) {
   return (
     <div className="rounded-xl border border-black/10 dark:border-white/10 p-6">
-      <h3 className="text-lg font-semibold mb-4">Projeção mensal de rendimentos</h3>
-      <div className="h-72">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+        <h3 className="text-lg font-semibold">Projeção mensal de rendimentos</h3>
+        {hasSimulation && (
+          <p className="text-xs text-foreground/50">
+            Comparando com e sem aporte de {formatCurrency(monthlyContribution)}/mês
+          </p>
+        )}
+      </div>
+      <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.3} />
             <XAxis dataKey="label" stroke="hsl(var(--foreground))" fontSize={11} />
             <YAxis
               yAxisId="left"
-              tickFormatter={(v) => `R$ ${(v / 1000).toFixed(v >= 1000 ? 1 : 0)}${v >= 1000 ? "k" : ""}`}
+              tickFormatter={(v) =>
+                `R$ ${(v / 1000).toFixed(v >= 1000 ? 1 : 0)}${v >= 1000 ? "k" : ""}`
+              }
               stroke="hsl(var(--foreground))"
               fontSize={11}
             />
@@ -389,15 +552,36 @@ function MonthlyProjectionChart({
               fill="#3b82f6"
               radius={[2, 2, 0, 0]}
             />
+            {hasSimulation && (
+              <Bar
+                yAxisId="left"
+                dataKey="contribution"
+                name="Aporte do mês"
+                fill="#f59e0b"
+                radius={[2, 2, 0, 0]}
+              />
+            )}
             <Line
               yAxisId="right"
               type="monotone"
               dataKey="projectedBalance"
-              name="Saldo projetado"
+              name={hasSimulation ? "Saldo com aportes" : "Saldo projetado"}
               stroke="#8b5cf6"
               strokeWidth={2}
               dot={false}
             />
+            {hasSimulation && (
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="balanceWithoutContribution"
+                name="Saldo sem aportes"
+                stroke="#94a3b8"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

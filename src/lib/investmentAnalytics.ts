@@ -1,7 +1,6 @@
 import { AccountPortfolioSummary } from '@/lib/api';
 
 const BUSINESS_DAYS_PER_MONTH = 21;
-const BUSINESS_DAYS_PER_YEAR = 252;
 
 export interface InvestmentMetrics {
   totalBalance: number;
@@ -27,7 +26,18 @@ export interface MonthProjection {
   projectedGross: number;
   projectedNet: number;
   projectedBalance: number;
+  contribution: number;
+  /** Saldo se não houver aportes mensais (para comparação no gráfico) */
+  balanceWithoutContribution: number;
+  /** Rendimento bruto do mês sem aportes */
+  grossWithoutContribution: number;
   isCurrentMonth: boolean;
+}
+
+export interface SimulationOptions {
+  monthlyContribution?: number;
+  /** Se true, aplica o aporte também no mês atual */
+  includeCurrentMonth?: boolean;
 }
 
 export interface ProjectionSummary {
@@ -35,10 +45,16 @@ export interface ProjectionSummary {
   restOfMonthNet: number;
   fullMonthGross: number;
   fullMonthNet: number;
+  /** Rendimento bruto total no horizonte (sem contar aportes) */
   yearGross: number;
   yearNet: number;
   yearEndBalance: number;
+  yearEndBalanceWithoutContribution: number;
+  totalContributed: number;
+  /** Quanto o saldo final ganhou além dos aportes + rendimento sem aporte */
+  extraFromContributions: number;
   monthly: MonthProjection[];
+  monthlyContribution: number;
 }
 
 function isBusinessDay(date: Date): boolean {
@@ -54,6 +70,15 @@ function monthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);
   const date = new Date(year, month - 1, 1);
   return date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function compoundYield(balance: number, dailyRate: number, days: number): number {
+  if (dailyRate <= 0 || balance <= 0 || days <= 0) return 0;
+  return balance * (Math.pow(1 + dailyRate, days) - 1);
 }
 
 /** Conta dias úteis restantes no mês (a partir de amanhã até o último dia). */
@@ -132,77 +157,122 @@ export function computeMetrics(
 
 /**
  * Projeta rendimentos futuros com base na taxa diária efetiva atual (CDI × % da conta),
- * capitalização diária em dias úteis e IR médio estimado da carteira.
+ * capitalização diária em dias úteis, IR médio e aportes mensais opcionais.
  */
 export function computeProjections(
   accounts: AccountPortfolioSummary[],
   metrics: InvestmentMetrics,
-  monthsAhead: number = 12
+  monthsAhead: number = 12,
+  simulation: SimulationOptions = {}
 ): ProjectionSummary {
+  const monthlyContribution = Math.max(0, simulation.monthlyContribution ?? 0);
+  const includeCurrentMonth = simulation.includeCurrentMonth ?? false;
+
   const dailyRate = metrics.effectiveDailyRatePct / 100;
   const irFactor = 1 - metrics.avgIrRate;
-  const balance = metrics.totalBalance;
+  const initialBalance = metrics.totalBalance;
   const remainingDays = countRemainingBusinessDays();
 
-  // Projeção do restante do mês: rendimento já acumulado + dias úteis restantes
   const restOfMonthGross =
-    dailyRate > 0 && balance > 0
-      ? balance * (Math.pow(1 + dailyRate, remainingDays) - 1)
-      : metrics.todayYield * remainingDays;
+    compoundYield(initialBalance, dailyRate, remainingDays) ||
+    metrics.todayYield * remainingDays;
 
-  const fullMonthGross = metrics.monthYield + restOfMonthGross;
-  const restOfMonthNet = restOfMonthGross * irFactor;
-  const fullMonthNet = metrics.monthYieldNet + restOfMonthNet;
-
-  // Projeção anual com capitalização em ~252 dias úteis
-  const yearGross =
-    dailyRate > 0 && balance > 0
-      ? balance * (Math.pow(1 + dailyRate, BUSINESS_DAYS_PER_YEAR) - 1)
-      : fullMonthGross * 12;
-  const yearNet = yearGross * irFactor;
-  const yearEndBalance = balance + yearGross;
+  const fullMonthGrossBase = metrics.monthYield + restOfMonthGross;
 
   const monthly: MonthProjection[] = [];
   const now = new Date();
-  let runningBalance = balance;
+
+  let runningWith = initialBalance;
+  let runningWithout = initialBalance;
+  let totalContributed = 0;
+  let totalYieldWith = 0;
+  let totalYieldWithout = 0;
 
   for (let i = 0; i < monthsAhead; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const monthKey = formatMonthKey(date);
     const isCurrent = i === 0;
+    const applyContribution =
+      monthlyContribution > 0 && (isCurrent ? includeCurrentMonth : true);
+
+    const contribution = applyContribution ? monthlyContribution : 0;
+
+    // Aporte no início do período (rende no mês)
+    if (contribution > 0) {
+      runningWith += contribution;
+      totalContributed += contribution;
+    }
 
     let projectedGross: number;
+    let grossWithout: number;
+
     if (isCurrent) {
-      projectedGross = fullMonthGross;
-      runningBalance = balance + restOfMonthGross;
+      // Sem aporte: rendimento já acumulado + restante do mês
+      // Com aporte no mês atual: rendimento do saldo atual + rendimento do aporte nos dias restantes
+      const yieldOnBalance = restOfMonthGross;
+      const yieldOnContribution = compoundYield(contribution, dailyRate, remainingDays);
+      projectedGross = metrics.monthYield + yieldOnBalance + yieldOnContribution;
+      grossWithout = fullMonthGrossBase;
+
+      runningWith = initialBalance + contribution + yieldOnBalance + yieldOnContribution;
+      runningWithout = initialBalance + yieldOnBalance;
     } else {
-      const days = BUSINESS_DAYS_PER_MONTH;
-      projectedGross =
-        dailyRate > 0 && runningBalance > 0
-          ? runningBalance * (Math.pow(1 + dailyRate, days) - 1)
-          : 0;
-      runningBalance += projectedGross;
+      projectedGross = compoundYield(runningWith, dailyRate, BUSINESS_DAYS_PER_MONTH);
+      grossWithout = compoundYield(runningWithout, dailyRate, BUSINESS_DAYS_PER_MONTH);
+      runningWith += projectedGross;
+      runningWithout += grossWithout;
+    }
+
+    // No mês atual, projectedGross inclui o já acumulado no mês; para o total de yield
+    // futuro no horizonte usamos só a parte projetada + meses seguintes
+    if (isCurrent) {
+      totalYieldWith += projectedGross;
+      totalYieldWithout += grossWithout;
+    } else {
+      totalYieldWith += projectedGross;
+      totalYieldWithout += grossWithout;
     }
 
     monthly.push({
       month: monthKey,
       label: monthLabel(monthKey),
-      projectedGross: Math.round(projectedGross * 100) / 100,
-      projectedNet: Math.round(projectedGross * irFactor * 100) / 100,
-      projectedBalance: Math.round(runningBalance * 100) / 100,
+      projectedGross: round2(projectedGross),
+      projectedNet: round2(projectedGross * irFactor),
+      projectedBalance: round2(runningWith),
+      contribution: round2(contribution),
+      balanceWithoutContribution: round2(runningWithout),
+      grossWithoutContribution: round2(grossWithout),
       isCurrentMonth: isCurrent,
     });
   }
 
+  const yearEndBalance = runningWith;
+  const yearEndBalanceWithoutContribution = runningWithout;
+  const yearGross = totalYieldWith;
+  const yearNet = yearGross * irFactor;
+  const extraFromContributions =
+    yearEndBalance - yearEndBalanceWithoutContribution - totalContributed;
+
+  // Cards de mês (restante / completo) — aporte no mês atual só entra no rendimento do aporte
+  const currentContributionYield = includeCurrentMonth
+    ? compoundYield(monthlyContribution, dailyRate, remainingDays)
+    : 0;
+  const restGross = restOfMonthGross + currentContributionYield;
+  const fullGross = metrics.monthYield + restGross;
+
   return {
-    restOfMonthGross: Math.round(restOfMonthGross * 100) / 100,
-    restOfMonthNet: Math.round(restOfMonthNet * 100) / 100,
-    fullMonthGross: Math.round(fullMonthGross * 100) / 100,
-    fullMonthNet: Math.round(fullMonthNet * 100) / 100,
-    yearGross: Math.round(yearGross * 100) / 100,
-    yearNet: Math.round(yearNet * 100) / 100,
-    yearEndBalance: Math.round(yearEndBalance * 100) / 100,
+    restOfMonthGross: round2(restGross),
+    restOfMonthNet: round2(restGross * irFactor),
+    fullMonthGross: round2(fullGross),
+    fullMonthNet: round2(fullGross * irFactor),
+    yearGross: round2(yearGross),
+    yearNet: round2(yearNet),
+    yearEndBalance: round2(yearEndBalance),
+    yearEndBalanceWithoutContribution: round2(yearEndBalanceWithoutContribution),
+    totalContributed: round2(totalContributed),
+    extraFromContributions: round2(Math.max(0, extraFromContributions)),
     monthly,
+    monthlyContribution: round2(monthlyContribution),
   };
 }
 
