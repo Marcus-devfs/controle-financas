@@ -273,6 +273,31 @@ export interface PortfolioSummary {
   currentCdiRate: number | null;
 }
 
+// Interface para item da lista de planejamento de compras (por mês)
+export interface ShoppingPlanItem {
+  _id: string;
+  userId: string;
+  month: string; // formato YYYY-MM
+  name: string;
+  category: string;
+  frequency: 'weekly' | 'monthly' | 'once';
+  quantity: number;
+  unit: string;
+  estimatedUnitPrice: number;
+  purchaseMethod: 'online' | 'store' | 'both';
+  notes?: string;
+  isPurchased: boolean;
+  actualAmount?: number;
+  purchasedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ShoppingPlanItemInput = Omit<
+  ShoppingPlanItem,
+  '_id' | 'userId' | 'createdAt' | 'updatedAt' | 'isPurchased' | 'actualAmount' | 'purchasedAt'
+>;
+
 // Classe para gerenciar a API
 class ApiClient {
   private client: AxiosInstance;
@@ -714,6 +739,67 @@ class ApiClient {
     if (!response.data.success) {
       throw new Error(response.data.message || 'Erro ao excluir movimentação');
     }
+  }
+
+  // Métodos para planejamento de compras
+  async getShoppingPlanItems(month: string): Promise<ShoppingPlanItem[]> {
+    const response = await this.client.get<ApiResponse<ShoppingPlanItem[]>>('/api/shopping-plan-items', {
+      params: { month },
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao buscar itens do planejamento de compras');
+  }
+
+  async createShoppingPlanItem(item: ShoppingPlanItemInput): Promise<ShoppingPlanItem> {
+    const response = await this.client.post<ApiResponse<ShoppingPlanItem>>('/api/shopping-plan-items', item);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao criar item do planejamento de compras');
+  }
+
+  async updateShoppingPlanItem(id: string, item: Partial<ShoppingPlanItemInput>): Promise<ShoppingPlanItem> {
+    const response = await this.client.put<ApiResponse<ShoppingPlanItem>>(`/api/shopping-plan-items/${id}`, item);
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao atualizar item do planejamento de compras');
+  }
+
+  async deleteShoppingPlanItem(id: string): Promise<void> {
+    const response = await this.client.delete<ApiResponse>(`/api/shopping-plan-items/${id}`);
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Erro ao excluir item do planejamento de compras');
+    }
+  }
+
+  async setShoppingPlanItemPurchased(id: string, isPurchased: boolean, actualAmount?: number): Promise<ShoppingPlanItem> {
+    const response = await this.client.patch<ApiResponse<ShoppingPlanItem>>(`/api/shopping-plan-items/${id}/purchase`, {
+      isPurchased,
+      actualAmount,
+    });
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao atualizar status de compra do item');
+  }
+
+  async duplicateShoppingPlanItems(sourceMonth: string, targetMonth: string): Promise<{ sourceMonth: string; targetMonth: string; duplicatedCount: number; alreadyExistsCount: number }> {
+    const response = await this.client.post<ApiResponse<{ sourceMonth: string; targetMonth: string; duplicatedCount: number; alreadyExistsCount: number }>>(
+      `/api/shopping-plan-items/duplicate/${sourceMonth}/${targetMonth}`
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Erro ao duplicar itens do planejamento de compras');
   }
 
   async syncCdiRates(): Promise<{ count: number }> {

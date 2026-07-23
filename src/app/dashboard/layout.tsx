@@ -103,6 +103,9 @@ export default function DashboardLayout({
               <Link className="block px-3 py-2 rounded hover:bg-foreground/5 transition" href="/dashboard/investimentos">
                 Investimentos
               </Link>
+              <Link className="block px-3 py-2 rounded hover:bg-foreground/5 transition" href="/dashboard/planejamento-compras">
+                Planejamento de Compras
+              </Link>
               <Link className="block px-3 py-2 rounded hover:bg-foreground/5 transition" href="/dashboard/relatorios">
                 Relatórios
               </Link>
