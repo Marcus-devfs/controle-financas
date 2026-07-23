@@ -35,6 +35,14 @@ const PURCHASE_METHOD_LABEL: Record<ShoppingPlanItem["purchaseMethod"], string> 
 
 type Tab = "planejamento" | "real";
 
+interface CategorySummary {
+  category: string;
+  planned: number;
+  spent: number;
+  count: number;
+  purchased: number;
+}
+
 export default function PlanejamentoComprasPage() {
   const {
     items,
@@ -58,6 +66,7 @@ export default function PlanejamentoComprasPage() {
   const [activeTab, setActiveTab] = useState<Tab>("planejamento");
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingPlanItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const availableMonths = getAvailableMonths();
 
@@ -70,6 +79,36 @@ export default function PlanejamentoComprasPage() {
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [items]);
+
+  const categorySummaries = useMemo<CategorySummary[]>(() => {
+    const map = new Map<string, CategorySummary>();
+    for (const item of items) {
+      const cur =
+        map.get(item.category) ||
+        { category: item.category, planned: 0, spent: 0, count: 0, purchased: 0 };
+      const estimated = monthlyEstimatedTotal(item);
+      cur.planned += estimated;
+      cur.count += 1;
+      if (item.isPurchased) {
+        cur.spent += item.actualAmount ?? estimated;
+        cur.purchased += 1;
+      }
+      map.set(item.category, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => a.category.localeCompare(b.category));
+  }, [items]);
+
+  const visibleGrouped = useMemo(() => {
+    if (!selectedCategory) return groupedByCategory;
+    return groupedByCategory.filter(([cat]) => cat === selectedCategory);
+  }, [groupedByCategory, selectedCategory]);
+
+  // Limpa o filtro se a categoria selecionada não existir mais no mês atual
+  useEffect(() => {
+    if (selectedCategory && !items.some(i => i.category === selectedCategory)) {
+      setSelectedCategory(null);
+    }
+  }, [items, selectedCategory]);
 
   const handleDelete = async (item: ShoppingPlanItem) => {
     if (window.confirm(`Remover "${item.name}" da lista de ${formatMonth(currentMonth)}?`)) {
@@ -192,7 +231,14 @@ export default function PlanejamentoComprasPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {groupedByCategory.map(([category, categoryItems]) => (
+              <CategoryCards
+                summaries={categorySummaries}
+                selectedCategory={selectedCategory}
+                onSelect={setSelectedCategory}
+                variant="planejamento"
+                totals={{ planned: plannedTotal, spent: spentTotal, count: items.length, purchased: purchasedCount }}
+              />
+              {visibleGrouped.map(([category, categoryItems]) => (
                 <div key={category} className="space-y-2">
                   <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     {category}
@@ -270,11 +316,18 @@ export default function PlanejamentoComprasPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              <CategoryCards
+                summaries={categorySummaries}
+                selectedCategory={selectedCategory}
+                onSelect={setSelectedCategory}
+                variant="real"
+                totals={{ planned: plannedTotal, spent: spentTotal, count: items.length, purchased: purchasedCount }}
+              />
               <p className="text-sm text-muted-foreground">
                 Quantidades já convertidas para o mês (itens semanais × {WEEKS_IN_MONTH}).
                 Marque o que comprou e, se quiser, informe o valor gasto.
               </p>
-              {groupedByCategory.map(([category, categoryItems]) => (
+              {visibleGrouped.map(([category, categoryItems]) => (
                 <div key={category} className="space-y-2">
                   <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     {category}
@@ -327,6 +380,116 @@ export default function PlanejamentoComprasPage() {
         />
       )}
     </div>
+  );
+}
+
+function CategoryCards({
+  summaries,
+  selectedCategory,
+  onSelect,
+  variant,
+  totals
+}: {
+  summaries: CategorySummary[];
+  selectedCategory: string | null;
+  onSelect: (cat: string | null) => void;
+  variant: Tab;
+  totals: { planned: number; spent: number; count: number; purchased: number };
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Por categoria
+        </h2>
+        {selectedCategory && (
+          <button
+            onClick={() => onSelect(null)}
+            className="text-xs text-primary hover:underline"
+          >
+            Limpar filtro
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <CategoryCard
+          label="Todas"
+          active={selectedCategory === null}
+          onClick={() => onSelect(null)}
+          primary={variant === "real" ? formatCurrency(totals.spent) : formatCurrency(totals.planned)}
+          secondary={
+            variant === "real"
+              ? `de ${formatCurrency(totals.planned)}`
+              : `${totals.count} ${totals.count === 1 ? "item" : "itens"}`
+          }
+          progress={variant === "real" ? (totals.count ? totals.purchased / totals.count : 0) : undefined}
+          variant={variant}
+        />
+        {summaries.map(s => (
+          <CategoryCard
+            key={s.category}
+            label={s.category}
+            active={selectedCategory === s.category}
+            onClick={() => onSelect(selectedCategory === s.category ? null : s.category)}
+            primary={variant === "real" ? formatCurrency(s.spent) : formatCurrency(s.planned)}
+            secondary={
+              variant === "real"
+                ? `de ${formatCurrency(s.planned)} · ${s.purchased}/${s.count}`
+                : `${s.count} ${s.count === 1 ? "item" : "itens"}`
+            }
+            progress={variant === "real" ? (s.count ? s.purchased / s.count : 0) : undefined}
+            variant={variant}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryCard({
+  label,
+  primary,
+  secondary,
+  active,
+  onClick,
+  progress,
+  variant
+}: {
+  label: string;
+  primary: string;
+  secondary: string;
+  active: boolean;
+  onClick: () => void;
+  progress?: number;
+  variant: Tab;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`card p-4 text-left transition hover:border-primary/60 ${
+        active ? "border-primary ring-1 ring-primary" : ""
+      }`}
+    >
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
+        {label}
+      </div>
+      <div
+        className={`text-lg font-bold mt-1 ${
+          variant === "real" ? "text-green-600 dark:text-green-400" : ""
+        }`}
+      >
+        {primary}
+      </div>
+      <div className="text-xs text-muted-foreground mt-0.5 truncate">{secondary}</div>
+      {progress !== undefined && (
+        <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full bg-green-600 dark:bg-green-500 transition-all"
+            style={{ width: `${Math.min(100, Math.round(progress * 100))}%` }}
+          />
+        </div>
+      )}
+    </button>
   );
 }
 
