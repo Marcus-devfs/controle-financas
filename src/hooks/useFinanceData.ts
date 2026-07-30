@@ -16,6 +16,26 @@ import {
 } from '@/lib/api';
 import { getCurrentMonth } from '@/lib/data';
 
+const MONTH_STORAGE_KEY_PREFIX = 'financas_current_month_';
+
+function getStoredMonth(userId: string): string | null {
+  if (typeof window === 'undefined' || !userId) return null;
+  try {
+    return localStorage.getItem(`${MONTH_STORAGE_KEY_PREFIX}${userId}`);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredMonth(userId: string, month: string): void {
+  if (typeof window === 'undefined' || !userId) return;
+  try {
+    localStorage.setItem(`${MONTH_STORAGE_KEY_PREFIX}${userId}`, month);
+  } catch {
+    // ignore (ex.: storage indisponível/cheio)
+  }
+}
+
 // Funções de conversão entre tipos da API e tipos do frontend
 function convertApiTransaction(apiTransaction: ApiTransactionResponse): Transaction {
   return {
@@ -71,7 +91,9 @@ export function useFinanceData(userId: string) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [currentMonth, setCurrentMonthState] = useState<string>(getCurrentMonth());
+  const [currentMonth, setCurrentMonthState] = useState<string>(
+    () => getStoredMonth(userId) || getCurrentMonth()
+  );
   const [error, setError] = useState<string | null>(null);
   
   // Ref para evitar loops infinitos
@@ -176,9 +198,10 @@ export function useFinanceData(userId: string) {
   }, [currentMonth, userId, loadMonthData]);
 
   const setCurrentMonth = useCallback((month: string) => {
+    setStoredMonth(userId, month);
     if (month === currentMonth) return;
     setCurrentMonthState(month);
-  }, [currentMonth]);
+  }, [currentMonth, userId]);
 
   const addNewTransaction = useCallback(async (
     transaction: Omit<Transaction, 'id' | 'month'>
