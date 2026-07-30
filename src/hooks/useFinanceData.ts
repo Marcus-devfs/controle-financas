@@ -299,7 +299,13 @@ export function useFinanceData(userId: string) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       months.add(date.toISOString().slice(0, 7));
     }
-    
+
+    // Adicionar próximos 6 meses (planejamento futuro)
+    for (let i = 1; i <= 6; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
+      months.add(date.toISOString().slice(0, 7));
+    }
+
     // Adicionar meses futuros baseados em transações recorrentes
     const recurringTransactions = transactions.filter(t => t.recurringRule);
     
